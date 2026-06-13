@@ -201,10 +201,22 @@ export default function MultiStepForm() {
         body: formDataToSend,
       });
 
-      const result = await response.json();
+      const rawText = await response.text();
+
+      let result: any = null;
+      try {
+        result = rawText ? JSON.parse(rawText) : null;
+      } catch {
+        result = null;
+      }
 
       if (!response.ok) {
-        throw new Error(result?.error || "No se pudo enviar el formulario.");
+        throw new Error(
+          result?.error ||
+            result?.message ||
+            rawText ||
+            `Error ${response.status}: no se pudo enviar el formulario.`
+        );
       }
 
       setSubmitMessage({
