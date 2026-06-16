@@ -15,6 +15,10 @@ const steps = [
   "Cierre",
 ];
 
+const MAX_IMAGE_DIMENSION = 1280;
+const JPEG_QUALITY = 0.72;
+const MAX_TOTAL_REQUEST_BYTES = 4 * 1024 * 1024;
+
 type SubmitMessage =
   | {
       type: "success" | "error";
@@ -168,20 +172,24 @@ export default function MultiStepForm() {
       };
 
       const formDataToSend = new FormData();
-      formDataToSend.append("payload", JSON.stringify(payload));
+      const payloadJson = JSON.stringify(payload);
+      formDataToSend.append("payload", payloadJson);
 
-      (data.nulos || []).forEach((nulo, index) => {
+      let totalBytes = new TextEncoder().encode(payloadJson).length;
+
+      for (const [index, nulo] of (data.nulos || []).entries()) {
         if (nulo.fotoPedidoOriginal instanceof File) {
-          formDataToSend.append(
-            `nulos.${index}.fotoPedidoOriginal`,
-            nulo.fotoPedidoOriginal
-          );
+          const compressed = await compressImage(nulo.fotoPedidoOriginal);
+          totalBytes += compressed.size;
+          formDataToSend.append(`nulos.${index}.fotoPedidoOriginal`, compressed);
         }
 
         if (nulo.fotoFacturaRectificativa instanceof File) {
+          const compressed = await compressImage(nulo.fotoFacturaRectificativa);
+          totalBytes += compressed.size;
           formDataToSend.append(
             `nulos.${index}.fotoFacturaRectificativa`,
-            nulo.fotoFacturaRectificativa
+            compressed
           );
         }
 
@@ -189,12 +197,17 @@ export default function MultiStepForm() {
           nulo.tieneNuevoPedido === "si" &&
           nulo.fotoNuevoPedido instanceof File
         ) {
-          formDataToSend.append(
-            `nulos.${index}.fotoNuevoPedido`,
-            nulo.fotoNuevoPedido
-          );
+          const compressed = await compressImage(nulo.fotoNuevoPedido);
+          totalBytes += compressed.size;
+          formDataToSend.append(`nulos.${index}.fotoNuevoPedido`, compressed);
         }
-      });
+      }
+
+      if (totalBytes > MAX_TOTAL_REQUEST_BYTES) {
+        throw new Error(
+          "Las imágenes siguen pesando demasiado para enviarse juntas. Reduce la cantidad de fotos o vuelve a hacerlas con menos resolución."
+        );
+      }
 
       const response = await fetch("/api/send-form", {
         method: "POST",
@@ -860,6 +873,99 @@ function timeToMinutes(value: string): number | null {
   }
 
   return parts[0] * 60 + parts[1];
+}
+
+async function compressImage(file: File): Promise<File> {
+  if (!file.type.startsWith("image/")) {
+    return file;
+  }
+
+  const imageUrl = URL.createObjectURL(file);
+
+  try {
+    const image = await loadImage(imageUrl);
+
+    const { width, height } = getScaledDimensions(
+      image.width,
+      image.height,
+      MAX_IMAGE_DIMENSION
+    );
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      return file;
+    }
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(image, 0, 0, width, height);
+
+    const blob = await canvasToBlob(canvas, "image/jpeg", JPEG_QUALITY);
+    if (!blob) {
+      return file;
+    }
+
+    const compressedFile = new File(
+      [blob],
+      replaceExtensionWithJpg(file.name),
+      {
+        type: "image/jpeg",
+        lastModified: Date.now(),
+      }
+    );
+
+    return compressedFile.size < file.size ? compressedFile : file;
+  } finally {
+    URL.revokeObjectURL(imageUrl);
+  }
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("No se pudo cargar la imagen."));
+    image.src = src;
+  });
+}
+
+function getScaledDimensions(
+  originalWidth: number,
+  originalHeight: number,
+  maxDimension: number
+) {
+  if (originalWidth <= maxDimension && originalHeight <= maxDimension) {
+    return { width: originalWidth, height: originalHeight };
+  }
+
+  const ratio = Math.min(
+    maxDimension / originalWidth,
+    maxDimension / originalHeight
+  );
+
+  return {
+    width: Math.max(1, Math.round(originalWidth * ratio)),
+    height: Math.max(1, Math.round(originalHeight * ratio)),
+  };
+}
+
+function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  type: string,
+  quality: number
+): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), type, quality);
+  });
+}
+
+function replaceExtensionWithJpg(fileName: string) {
+  return fileName.replace(/\.[^/.]+$/, "") + ".jpg";
 }
 
 function StepShell({
