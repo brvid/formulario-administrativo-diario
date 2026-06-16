@@ -23,10 +23,27 @@ type SubmitMessage =
     }
   | null;
 
+type UploadStatus = "idle" | "uploading" | "uploaded" | "error";
+
+type UploadedFileState = {
+  status: UploadStatus;
+  fileName?: string;
+  url?: string;
+  error?: string;
+};
+
+type UploadFieldName =
+  | "fotoPedidoOriginal"
+  | "fotoFacturaRectificativa"
+  | "fotoNuevoPedido";
+
 export default function MultiStepForm() {
   const [step, setStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<SubmitMessage>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<
+    Record<string, UploadedFileState>
+  >({});
 
   const {
     register,
@@ -74,6 +91,12 @@ export default function MultiStepForm() {
   const quebranto = useMemo(() => {
     return efectivoStoreace - billetesLoomis - monedasLoomis;
   }, [efectivoStoreace, billetesLoomis, monedasLoomis]);
+
+  const isUploadingFiles = useMemo(() => {
+    return Object.values(uploadedFiles).some(
+      (fileState) => fileState.status === "uploading"
+    );
+  }, [uploadedFiles]);
 
   useEffect(() => {
     setSubmitMessage(null);
@@ -127,6 +150,21 @@ export default function MultiStepForm() {
     setValue(`nulos.${index}.cumpleMargen`, resultado);
   };
 
+  const getUploadKey = (index: number, fieldName: UploadFieldName) =>
+    `nulos.${index}.${fieldName}`;
+
+  const clearUploadedFile = (index: number, fieldName: UploadFieldName) => {
+    const key = getUploadKey(index, fieldName);
+
+    setUploadedFiles((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+
+    (setValue as any)(`nulos.${index}.${fieldName}`, null);
+  };
+
   const handleNuevoPedidoChange = (index: number, value: "si" | "no") => {
     setValue(`nulos.${index}.tieneNuevoPedido`, value);
 
@@ -135,7 +173,61 @@ export default function MultiStepForm() {
     }
 
     if (value === "no") {
-      (setValue as any)(`nulos.${index}.fotoNuevoPedido`, null);
+      clearUploadedFile(index, "fotoNuevoPedido");
+    }
+  };
+
+  const handleFileSelected = async (
+    index: number,
+    fieldName: UploadFieldName,
+    file: File | null,
+    folderSuffix: string
+  ) => {
+    const key = getUploadKey(index, fieldName);
+
+    setSubmitMessage(null);
+
+    if (!file) {
+      clearUploadedFile(index, fieldName);
+      return;
+    }
+
+    (setValue as any)(`nulos.${index}.${fieldName}`, file);
+
+    setUploadedFiles((prev) => ({
+      ...prev,
+      [key]: {
+        status: "uploading",
+        fileName: file.name,
+      },
+    }));
+
+    try {
+      const url = await uploadFileToBlob(
+        file,
+        `formularios/nulos/${index + 1}/${folderSuffix}`
+      );
+
+      setUploadedFiles((prev) => ({
+        ...prev,
+        [key]: {
+          status: "uploaded",
+          fileName: file.name,
+          url,
+        },
+      }));
+    } catch (error) {
+      setUploadedFiles((prev) => ({
+        ...prev,
+        [key]: {
+          status: "error",
+          fileName: file.name,
+          error:
+            error instanceof Error
+              ? error.message
+              : "No se pudo subir la imagen.",
+        },
+      }));
     }
   };
 
@@ -149,53 +241,63 @@ export default function MultiStepForm() {
   const onSubmit = async (data: FormDataType) => {
     if (step !== steps.length - 1) return;
 
+    if (isUploadingFiles) {
+      setSubmitMessage({
+        type: "error",
+        text: "Todavía se están subiendo imágenes. Espera a que terminen antes de enviar.",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     setSubmitMessage(null);
 
     try {
-      const nulosConUrls = await Promise.all(
-        (data.nulos || []).map(async (nulo, index) => {
-          const [
-            fotoPedidoOriginalUrl,
-            fotoFacturaRectificativaUrl,
-            fotoNuevoPedidoUrl,
-          ] = await Promise.all([
-            nulo.fotoPedidoOriginal instanceof File
-              ? uploadFileToBlob(
-                  nulo.fotoPedidoOriginal,
-                  `formularios/nulos/${index + 1}/pedido-original`
-                )
-              : Promise.resolve(""),
-            nulo.fotoFacturaRectificativa instanceof File
-              ? uploadFileToBlob(
-                  nulo.fotoFacturaRectificativa,
-                  `formularios/nulos/${index + 1}/factura-rectificativa`
-                )
-              : Promise.resolve(""),
-            nulo.tieneNuevoPedido === "si" &&
-            nulo.fotoNuevoPedido instanceof File
-              ? uploadFileToBlob(
-                  nulo.fotoNuevoPedido,
-                  `formularios/nulos/${index + 1}/nuevo-pedido`
-                )
-              : Promise.resolve(""),
-          ]);
+      const nulosConUrls = (data.nulos || []).map((nulo, index) => {
+        const fotoPedidoOriginalUrl =
+          uploadedFiles[getUploadKey(index, "fotoPedidoOriginal")]?.url || "";
+        const fotoFacturaRectificativaUrl =
+          uploadedFiles[getUploadKey(index, "fotoFacturaRectificativa")]?.url ||
+          "";
+        const fotoNuevoPedidoUrl =
+          uploadedFiles[getUploadKey(index, "fotoNuevoPedido")]?.url || "";
 
-          return {
-            horaPedido: nulo.horaPedido,
-            horaRectificativa: nulo.horaRectificativa,
-            cumpleMargen: nulo.cumpleMargen,
-            motivo: nulo.motivo,
-            tieneDosNombres: nulo.tieneDosNombres,
-            tieneDosFirmas: nulo.tieneDosFirmas,
-            tieneNuevoPedido: nulo.tieneNuevoPedido,
-            motivoSinNuevoPedido: nulo.motivoSinNuevoPedido || "",
-            fotoPedidoOriginalUrl,
-            fotoFacturaRectificativaUrl,
-            fotoNuevoPedidoUrl,
-          };
-        })
-      );
+        if (nulo.fotoPedidoOriginal && !fotoPedidoOriginalUrl) {
+          throw new Error(
+            `La imagen "Foto del pedido original" del nulo ${index + 1} no se ha subido correctamente.`
+          );
+        }
+
+        if (nulo.fotoFacturaRectificativa && !fotoFacturaRectificativaUrl) {
+          throw new Error(
+            `La imagen "Foto de la factura rectificativa" del nulo ${index + 1} no se ha subido correctamente.`
+          );
+        }
+
+        if (
+          nulo.tieneNuevoPedido === "si" &&
+          nulo.fotoNuevoPedido &&
+          !fotoNuevoPedidoUrl
+        ) {
+          throw new Error(
+            `La imagen "Foto del nuevo pedido" del nulo ${index + 1} no se ha subido correctamente.`
+          );
+        }
+
+        return {
+          horaPedido: nulo.horaPedido,
+          horaRectificativa: nulo.horaRectificativa,
+          cumpleMargen: nulo.cumpleMargen,
+          motivo: nulo.motivo,
+          tieneDosNombres: nulo.tieneDosNombres,
+          tieneDosFirmas: nulo.tieneDosFirmas,
+          tieneNuevoPedido: nulo.tieneNuevoPedido,
+          motivoSinNuevoPedido: nulo.motivoSinNuevoPedido || "",
+          fotoPedidoOriginalUrl,
+          fotoFacturaRectificativaUrl,
+          fotoNuevoPedidoUrl,
+        };
+      });
 
       const payload = {
         ...data,
@@ -411,6 +513,15 @@ export default function MultiStepForm() {
                         const errorMotivoNoAdjunta = (errors as any)?.nulos?.[index]
                           ?.motivoSinNuevoPedido;
 
+                        const uploadPedidoOriginal =
+                          uploadedFiles[getUploadKey(index, "fotoPedidoOriginal")];
+                        const uploadFacturaRectificativa =
+                          uploadedFiles[
+                            getUploadKey(index, "fotoFacturaRectificativa")
+                          ];
+                        const uploadNuevoPedido =
+                          uploadedFiles[getUploadKey(index, "fotoNuevoPedido")];
+
                         return (
                           <div
                             key={index}
@@ -511,10 +622,13 @@ export default function MultiStepForm() {
                                 <label>Foto del pedido original</label>
                                 <FileUploadField
                                   fileName={fotoPedidoOriginal?.name}
+                                  uploadState={uploadPedidoOriginal}
                                   onChange={(file) =>
-                                    (setValue as any)(
-                                      `nulos.${index}.fotoPedidoOriginal`,
-                                      file
+                                    handleFileSelected(
+                                      index,
+                                      "fotoPedidoOriginal",
+                                      file,
+                                      "pedido-original"
                                     )
                                   }
                                 />
@@ -524,10 +638,13 @@ export default function MultiStepForm() {
                                 <label>Foto de la factura rectificativa</label>
                                 <FileUploadField
                                   fileName={fotoFacturaRectificativa?.name}
+                                  uploadState={uploadFacturaRectificativa}
                                   onChange={(file) =>
-                                    (setValue as any)(
-                                      `nulos.${index}.fotoFacturaRectificativa`,
-                                      file
+                                    handleFileSelected(
+                                      index,
+                                      "fotoFacturaRectificativa",
+                                      file,
+                                      "factura-rectificativa"
                                     )
                                   }
                                 />
@@ -555,10 +672,13 @@ export default function MultiStepForm() {
                                   <label>Foto del nuevo pedido</label>
                                   <FileUploadField
                                     fileName={fotoNuevoPedido?.name}
+                                    uploadState={uploadNuevoPedido}
                                     onChange={(file) =>
-                                      (setValue as any)(
-                                        `nulos.${index}.fotoNuevoPedido`,
-                                        file
+                                      handleFileSelected(
+                                        index,
+                                        "fotoNuevoPedido",
+                                        file,
+                                        "nuevo-pedido"
                                       )
                                     }
                                   />
@@ -800,8 +920,9 @@ export default function MultiStepForm() {
                   )}
 
                   <div className="rounded-[22px] border border-dashed border-black/12 bg-white/25 p-4 text-sm leading-7 text-black/55 sm:rounded-[26px] sm:p-6">
-                    Aquí todavía no se envía nada automáticamente. El formulario
-                    solo se enviará cuando pulses el botón final.
+                    Aquí todavía no se envía nada automáticamente. Las imágenes se
+                    suben al seleccionarlas y el formulario solo se enviará cuando
+                    pulses el botón final.
                   </div>
                 </StepShell>
               )}
@@ -831,10 +952,14 @@ export default function MultiStepForm() {
               <button
                 type="button"
                 onClick={() => handleSubmit(onSubmit, onInvalid)()}
-                disabled={isSubmitting}
+                disabled={isSubmitting || isUploadingFiles}
                 className="w-full rounded-full bg-[#1f1b18] px-6 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
               >
-                {isSubmitting ? "Enviando..." : "Finalizar y enviar"}
+                {isSubmitting
+                  ? "Enviando..."
+                  : isUploadingFiles
+                    ? "Esperando subida de imágenes..."
+                    : "Finalizar y enviar"}
               </button>
             )}
           </div>
@@ -878,6 +1003,7 @@ async function uploadFileToBlob(file: File, folder: string): Promise<string> {
   const blob = await upload(fileName, file, {
     access: "public",
     handleUploadUrl: "/api/upload",
+    multipart: true,
   });
 
   return blob.url;
@@ -1012,18 +1138,24 @@ function AutoCalculatedStatus({
 
 function FileUploadField({
   fileName,
+  uploadState,
   onChange,
 }: {
   fileName?: string;
-  onChange: (file: File | null) => void;
+  uploadState?: UploadedFileState;
+  onChange: (file: File | null) => void | Promise<void>;
 }) {
+  const status = uploadState?.status || "idle";
+
   return (
     <div className="rounded-[20px] border border-dashed border-black/12 bg-white/70 p-4">
       <input
         type="file"
         accept="image/*"
         className="!w-full !border-0 !p-0 !text-sm !leading-6 file:mr-3 file:rounded-full file:border-0 file:bg-[#1f1b18] file:px-4 file:py-2 file:text-sm file:font-medium file:text-white"
-        onChange={(e) => onChange(e.target.files?.[0] ?? null)}
+        onChange={(e) => {
+          void onChange(e.target.files?.[0] ?? null);
+        }}
       />
 
       <p className="mt-3 text-sm text-black/45">
@@ -1031,6 +1163,22 @@ function FileUploadField({
           ? `Archivo seleccionado: ${fileName}`
           : "No se ha subido ninguna imagen todavía."}
       </p>
+
+      {status === "uploading" && (
+        <p className="mt-2 text-sm text-amber-700">Subiendo imagen...</p>
+      )}
+
+      {status === "uploaded" && (
+        <p className="mt-2 text-sm text-emerald-700">
+          Imagen subida correctamente.
+        </p>
+      )}
+
+      {status === "error" && (
+        <p className="mt-2 text-sm text-red-700">
+          {uploadState?.error || "No se pudo subir la imagen."}
+        </p>
+      )}
     </div>
   );
 }
