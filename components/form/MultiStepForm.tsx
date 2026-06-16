@@ -98,6 +98,24 @@ export default function MultiStepForm() {
     );
   }, [uploadedFiles]);
 
+  const uploadSummary = useMemo(() => {
+    const values = Object.values(uploadedFiles);
+    const totalSelected = values.length;
+    const uploading = values.filter((item) => item.status === "uploading").length;
+    const uploaded = values.filter((item) => item.status === "uploaded").length;
+    const error = values.filter((item) => item.status === "error").length;
+    const progressPercent =
+      totalSelected > 0 ? Math.round((uploaded / totalSelected) * 100) : 0;
+
+    return {
+      totalSelected,
+      uploading,
+      uploaded,
+      error,
+      progressPercent,
+    };
+  }, [uploadedFiles]);
+
   useEffect(() => {
     setSubmitMessage(null);
   }, [step]);
@@ -485,6 +503,10 @@ export default function MultiStepForm() {
                           {...register("numeroNulos", { valueAsNumber: true })}
                         />
                       </Field>
+
+                      {uploadSummary.totalSelected > 0 && (
+                        <UploadSummaryCard summary={uploadSummary} />
+                      )}
 
                       {Array.from({ length: numeroNulos || 0 }).map((_, index) => {
                         const horaPedido = watch(`nulos.${index}.horaPedido`);
@@ -907,6 +929,10 @@ export default function MultiStepForm() {
                     />
                   </Field>
 
+                  {uploadSummary.totalSelected > 0 && (
+                    <UploadSummaryCard summary={uploadSummary} />
+                  )}
+
                   {submitMessage && (
                     <div
                       className={`rounded-[22px] border px-5 py-4 text-sm sm:rounded-[26px] ${
@@ -920,9 +946,8 @@ export default function MultiStepForm() {
                   )}
 
                   <div className="rounded-[22px] border border-dashed border-black/12 bg-white/25 p-4 text-sm leading-7 text-black/55 sm:rounded-[26px] sm:p-6">
-                    Aquí todavía no se envía nada automáticamente. Las imágenes se
-                    suben al seleccionarlas y el formulario solo se enviará cuando
-                    pulses el botón final.
+                    Las imágenes se suben al seleccionarlas. Cuando todas estén en
+                    verde, el botón final enviará solo el formulario con sus URLs.
                   </div>
                 </StepShell>
               )}
@@ -1003,7 +1028,6 @@ async function uploadFileToBlob(file: File, folder: string): Promise<string> {
   const blob = await upload(fileName, file, {
     access: "public",
     handleUploadUrl: "/api/upload",
-    multipart: true,
   });
 
   return blob.url;
@@ -1136,6 +1160,47 @@ function AutoCalculatedStatus({
   );
 }
 
+function UploadSummaryCard({
+  summary,
+}: {
+  summary: {
+    totalSelected: number;
+    uploading: number;
+    uploaded: number;
+    error: number;
+    progressPercent: number;
+  };
+}) {
+  return (
+    <div className="rounded-[22px] border border-black/8 bg-white/55 p-4 sm:rounded-[26px] sm:p-6">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.28em] text-black/45 sm:text-[11px]">
+            Estado de imágenes
+          </p>
+          <p className="mt-2 text-sm font-medium text-[#1f1b18] sm:text-base">
+            {summary.uploaded} de {summary.totalSelected} subidas
+          </p>
+        </div>
+
+        <div className="text-right text-sm text-black/55">
+          {summary.uploading > 0 && <p>Subiendo: {summary.uploading}</p>}
+          {summary.error > 0 && (
+            <p className="text-red-700">Con error: {summary.error}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-black/8">
+        <div
+          className="h-full rounded-full bg-[#1f1b18] transition-all duration-300"
+          style={{ width: `${summary.progressPercent}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function FileUploadField({
   fileName,
   uploadState,
@@ -1165,17 +1230,31 @@ function FileUploadField({
       </p>
 
       {status === "uploading" && (
-        <p className="mt-2 text-sm text-amber-700">Subiendo imagen...</p>
-      )}
-
-      {status === "uploaded" && (
-        <p className="mt-2 text-sm text-emerald-700">
-          Imagen subida correctamente.
+        <p className="mt-2 text-sm font-medium text-amber-700">
+          Subiendo imagen...
         </p>
       )}
 
+      {status === "uploaded" && (
+        <div className="mt-2 space-y-1">
+          <p className="text-sm font-medium text-emerald-700">
+            Imagen subida correctamente.
+          </p>
+          {uploadState?.url && (
+            <a
+              href={uploadState.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex text-sm text-emerald-800 underline underline-offset-2"
+            >
+              Ver imagen subida
+            </a>
+          )}
+        </div>
+      )}
+
       {status === "error" && (
-        <p className="mt-2 text-sm text-red-700">
+        <p className="mt-2 text-sm font-medium text-red-700">
           {uploadState?.error || "No se pudo subir la imagen."}
         </p>
       )}
