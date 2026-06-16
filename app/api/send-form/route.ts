@@ -1,3 +1,4 @@
+import { get } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -44,6 +45,13 @@ type PayloadType = {
   quebranto?: number;
 };
 
+type GraphFileAttachment = {
+  "@odata.type": "#microsoft.graph.fileAttachment";
+  name: string;
+  contentType: string;
+  contentBytes: string;
+};
+
 function escapeHtml(text: string | number | null | undefined) {
   return String(text ?? "")
     .replace(/&/g, "&amp;")
@@ -59,14 +67,55 @@ function formatSiNo(value?: string) {
   return "-";
 }
 
-function renderUrl(label: string, url?: string) {
-  if (!url) {
-    return `<p><strong>${escapeHtml(label)}:</strong> -</p>`;
+function extractPrivateBlobPathname(blobUrl?: string) {
+  if (!blobUrl) return null;
+
+  try {
+    const url = new URL(blobUrl);
+    return decodeURIComponent(url.pathname.replace(/^\/+/, ""));
+  } catch {
+    return null;
+  }
+}
+
+async function readStreamToBuffer(
+  stream: ReadableStream<Uint8Array>
+): Promise<Buffer> {
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) chunks.push(value);
   }
 
-  const safeUrl = escapeHtml(url);
+  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)));
+}
 
-  return `<p><strong>${escapeHtml(label)}:</strong> <a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeUrl}</a></p>`;
+async function buildGraphAttachmentFromPrivateBlob(
+  blobUrl: string | undefined,
+  fallbackFilename: string
+): Promise<GraphFileAttachment | null> {
+  const pathname = extractPrivateBlobPathname(blobUrl);
+
+  if (!pathname) return null;
+
+  const result = await get(pathname, { access: "private" });
+
+  if (!result || result.statusCode !== 200 || !result.stream) {
+    throw new Error(`No se pudo leer el blob privado: ${pathname}`);
+  }
+
+  const buffer = await readStreamToBuffer(result.stream);
+  const fileName = pathname.split("/").pop() || fallbackFilename;
+
+  return {
+    "@odata.type": "#microsoft.graph.fileAttachment",
+    name: fileName,
+    contentType: result.blob.contentType || "application/octet-stream",
+    contentBytes: buffer.toString("base64"),
+  };
 }
 
 async function getGraphToken() {
@@ -154,13 +203,7 @@ function buildHtml(payload: PayloadType) {
         <p><strong>¿Dos firmas?:</strong> ${formatSiNo(nulo.tieneDosFirmas)}</p>
         <p><strong>¿Nuevo pedido adjunto?:</strong> ${formatSiNo(nulo.tieneNuevoPedido)}</p>
         <p><strong>Motivo sin nuevo pedido:</strong> ${escapeHtml(nulo.motivoSinNuevoPedido || "-")}</p>
-        ${renderUrl("Foto pedido original", nulo.fotoPedidoOriginalUrl)}
-        ${renderUrl("Foto factura rectificativa", nulo.fotoFacturaRectificativaUrl)}
-        ${
-          nulo.tieneNuevoPedido === "si"
-            ? renderUrl("Foto nuevo pedido", nulo.fotoNuevoPedidoUrl)
-            : ""
-        }
+        <p><strong>Adjuntos:</strong> Las imágenes de este nulo van adjuntas en el correo.</p>
       `
               )
               .join("")
@@ -203,6 +246,38 @@ function buildHtml(payload: PayloadType) {
   `;
 }
 
+async function buildAttachments(payload: PayloadType): Promise<GraphFileAttachment[]> {
+  const nulos = payload.nulos || [];
+
+  const attachments = await Promise.all(
+    nulos.flatMap((nulo, index) => {
+      const items: Promise<GraphFileAttachment | null>[] = [
+        buildGraphAttachmentFromPrivateBlob(
+          nulo.fotoPedidoOriginalUrl,
+          `nulo-${index + 1}-pedido-original.jpg`
+        ),
+        buildGraphAttachmentFromPrivateBlob(
+          nulo.fotoFacturaRectificativaUrl,
+          `nulo-${index + 1}-factura-rectificativa.jpg`
+        ),
+      ];
+
+      if (nulo.tieneNuevoPedido === "si") {
+        items.push(
+          buildGraphAttachmentFromPrivateBlob(
+            nulo.fotoNuevoPedidoUrl,
+            `nulo-${index + 1}-nuevo-pedido.jpg`
+          )
+        );
+      }
+
+      return items;
+    })
+  );
+
+  return attachments.filter(Boolean) as GraphFileAttachment[];
+}
+
 async function sendMailWithGraph(payload: PayloadType) {
   const sender = process.env.GRAPH_SENDER_USER;
   const to = process.env.FORM_TO || process.env.GRAPH_SENDER_USER;
@@ -213,6 +288,7 @@ async function sendMailWithGraph(payload: PayloadType) {
 
   const token = await getGraphToken();
   const html = buildHtml(payload);
+  const attachments = await buildAttachments(payload);
 
   const mailPayload = {
     message: {
@@ -228,6 +304,7 @@ async function sendMailWithGraph(payload: PayloadType) {
           },
         },
       ],
+      attachments,
     },
     saveToSentItems: true,
   };
