@@ -1028,6 +1028,10 @@ async function uploadFileToBlob(file: File, folder: string): Promise<string> {
   const blob = await upload(fileName, file, {
     access: "public",
     handleUploadUrl: "/api/upload",
+    clientPayload: JSON.stringify({
+      contentType: file.type,
+      accept: ["image/jpeg", "image/jpg", "image/png", "image/webp"],
+    }),
   });
 
   return blob.url;

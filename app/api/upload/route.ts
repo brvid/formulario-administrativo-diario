@@ -12,14 +12,28 @@ export async function POST(request: Request): Promise<NextResponse> {
     const jsonResponse = await handleUpload({
       body,
       request,
-      onBeforeGenerateToken: async (pathname) => {
+      onBeforeGenerateToken: async (pathname, clientPayload) => {
+        let payload: { contentType?: string; accept?: string[] } = {};
+
+        if (clientPayload) {
+          try {
+            payload = JSON.parse(clientPayload);
+          } catch {
+            payload = {};
+          }
+        }
+
+        const allowedContentTypes =
+          Array.isArray(payload.accept) && payload.accept.length > 0
+            ? payload.accept
+            : ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+
         return {
-          allowedContentTypes: [
-            "image/jpeg",
-            "image/jpg",
-            "image/png",
-            "image/webp",
-          ],
+          allowedContentTypes,
+          contentType:
+            typeof payload.contentType === "string"
+              ? payload.contentType
+              : undefined,
           maximumSizeInBytes: 10 * 1024 * 1024,
           addRandomSuffix: true,
           tokenPayload: JSON.stringify({ pathname }),
