@@ -76,7 +76,7 @@ async function getGraphToken() {
 
   if (!tenantId || !clientId || !clientSecret) {
     throw new Error(
-      "Faltan GRAPH_TENANT_ID, GRAPH_CLIENT_ID o GRAPH_CLIENT_SECRET en .env.local"
+      "Faltan GRAPH_TENANT_ID, GRAPH_CLIENT_ID o GRAPH_CLIENT_SECRET en las variables de entorno."
     );
   }
 
@@ -126,78 +126,80 @@ function buildHtml(payload: PayloadType) {
   const comidas = payload.comidas || [];
 
   return `
-    <h1>Formulario Administrativo Diario</h1>
+    <div style="font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #1f1b18;">
+      <h1>Formulario Administrativo Diario</h1>
 
-    <h2>Datos generales</h2>
-    <p><strong>Fecha:</strong> ${escapeHtml(payload.fecha || "-")}</p>
-    <p><strong>Encargado:</strong> ${escapeHtml(payload.encargado || "-")}</p>
-    <p><strong>¿Incidencia?:</strong> ${formatSiNo(payload.incidencia)}</p>
-    <p><strong>Descripción incidencia:</strong> ${escapeHtml(payload.descripcionIncidencia || "-")}</p>
+      <h2>Datos generales</h2>
+      <p><strong>Fecha:</strong> ${escapeHtml(payload.fecha || "-")}</p>
+      <p><strong>Encargado:</strong> ${escapeHtml(payload.encargado || "-")}</p>
+      <p><strong>¿Incidencia?:</strong> ${formatSiNo(payload.incidencia)}</p>
+      <p><strong>Descripción incidencia:</strong> ${escapeHtml(payload.descripcionIncidencia || "-")}</p>
 
-    <h2>Nulos</h2>
-    <p><strong>¿Ha habido nulos?:</strong> ${formatSiNo(payload.haHabidoNulos)}</p>
-    <p><strong>Número de nulos:</strong> ${escapeHtml(payload.numeroNulos ?? 0)}</p>
+      <h2>Nulos</h2>
+      <p><strong>¿Ha habido nulos?:</strong> ${formatSiNo(payload.haHabidoNulos)}</p>
+      <p><strong>Número de nulos:</strong> ${escapeHtml(payload.numeroNulos ?? 0)}</p>
 
-    ${
-      nulos.length
-        ? nulos
-            .map(
-              (nulo, index) => `
-      <hr />
-      <h3>Nulo ${index + 1}</h3>
-      <p><strong>Hora pedido:</strong> ${escapeHtml(nulo.horaPedido || "-")}</p>
-      <p><strong>Hora rectificativa:</strong> ${escapeHtml(nulo.horaRectificativa || "-")}</p>
-      <p><strong>¿Cumple margen?:</strong> ${formatSiNo(nulo.cumpleMargen)}</p>
-      <p><strong>Motivo:</strong> ${escapeHtml(nulo.motivo || "-")}</p>
-      <p><strong>¿Dos nombres?:</strong> ${formatSiNo(nulo.tieneDosNombres)}</p>
-      <p><strong>¿Dos firmas?:</strong> ${formatSiNo(nulo.tieneDosFirmas)}</p>
-      <p><strong>¿Nuevo pedido adjunto?:</strong> ${formatSiNo(nulo.tieneNuevoPedido)}</p>
-      <p><strong>Motivo sin nuevo pedido:</strong> ${escapeHtml(nulo.motivoSinNuevoPedido || "-")}</p>
-      ${renderUrl("Foto pedido original", nulo.fotoPedidoOriginalUrl)}
-      ${renderUrl("Foto factura rectificativa", nulo.fotoFacturaRectificativaUrl)}
       ${
-        nulo.tieneNuevoPedido === "si"
-          ? renderUrl("Foto nuevo pedido", nulo.fotoNuevoPedidoUrl)
-          : ""
+        nulos.length
+          ? nulos
+              .map(
+                (nulo, index) => `
+        <hr />
+        <h3>Nulo ${index + 1}</h3>
+        <p><strong>Hora pedido:</strong> ${escapeHtml(nulo.horaPedido || "-")}</p>
+        <p><strong>Hora rectificativa:</strong> ${escapeHtml(nulo.horaRectificativa || "-")}</p>
+        <p><strong>¿Cumple margen?:</strong> ${formatSiNo(nulo.cumpleMargen)}</p>
+        <p><strong>Motivo:</strong> ${escapeHtml(nulo.motivo || "-")}</p>
+        <p><strong>¿Dos nombres?:</strong> ${formatSiNo(nulo.tieneDosNombres)}</p>
+        <p><strong>¿Dos firmas?:</strong> ${formatSiNo(nulo.tieneDosFirmas)}</p>
+        <p><strong>¿Nuevo pedido adjunto?:</strong> ${formatSiNo(nulo.tieneNuevoPedido)}</p>
+        <p><strong>Motivo sin nuevo pedido:</strong> ${escapeHtml(nulo.motivoSinNuevoPedido || "-")}</p>
+        ${renderUrl("Foto pedido original", nulo.fotoPedidoOriginalUrl)}
+        ${renderUrl("Foto factura rectificativa", nulo.fotoFacturaRectificativaUrl)}
+        ${
+          nulo.tieneNuevoPedido === "si"
+            ? renderUrl("Foto nuevo pedido", nulo.fotoNuevoPedidoUrl)
+            : ""
+        }
+      `
+              )
+              .join("")
+          : "<p>No hay nulos registrados.</p>"
       }
-    `
-            )
-            .join("")
-        : "<p>No hay nulos registrados.</p>"
-    }
 
-    <h2>Comida personal</h2>
-    <p><strong>¿Ha habido comida personal?:</strong> ${formatSiNo(payload.haHabidoComida)}</p>
-    <p><strong>Personas con derecho:</strong> ${escapeHtml(payload.personasConDerecho ?? 0)}</p>
-    <p><strong>Tickets esperados:</strong> ${escapeHtml(payload.ticketsEsperados ?? 0)}</p>
-    <p><strong>Tickets finales:</strong> ${escapeHtml(payload.ticketsFinales ?? 0)}</p>
-    <p><strong>Personas sin ticar:</strong> ${escapeHtml(payload.personasSinTicar || "-")}</p>
-    <p><strong>Número de personas comida:</strong> ${escapeHtml(payload.numeroPersonasComida ?? 0)}</p>
+      <h2>Comida personal</h2>
+      <p><strong>¿Ha habido comida personal?:</strong> ${formatSiNo(payload.haHabidoComida)}</p>
+      <p><strong>Personas con derecho:</strong> ${escapeHtml(payload.personasConDerecho ?? 0)}</p>
+      <p><strong>Tickets esperados:</strong> ${escapeHtml(payload.ticketsEsperados ?? 0)}</p>
+      <p><strong>Tickets finales:</strong> ${escapeHtml(payload.ticketsFinales ?? 0)}</p>
+      <p><strong>Personas sin ticar:</strong> ${escapeHtml(payload.personasSinTicar || "-")}</p>
+      <p><strong>Número de personas comida:</strong> ${escapeHtml(payload.numeroPersonasComida ?? 0)}</p>
 
-    ${
-      comidas.length
-        ? comidas
-            .map(
-              (comida, index) => `
-      <hr />
-      <h3>Persona ${index + 1}</h3>
-      <p><strong>Nombre:</strong> ${escapeHtml(comida.nombre || "-")}</p>
-      <p><strong>Hora:</strong> ${escapeHtml(comida.hora || "-")}</p>
-    `
-            )
-            .join("")
-        : "<p>No hay personas registradas en comida.</p>"
-    }
+      ${
+        comidas.length
+          ? comidas
+              .map(
+                (comida, index) => `
+        <hr />
+        <h3>Persona ${index + 1}</h3>
+        <p><strong>Nombre:</strong> ${escapeHtml(comida.nombre || "-")}</p>
+        <p><strong>Hora:</strong> ${escapeHtml(comida.hora || "-")}</p>
+      `
+              )
+              .join("")
+          : "<p>No hay personas registradas en comida.</p>"
+      }
 
-    <h2>Caja</h2>
-    <p><strong>Efectivo post de storeace:</strong> ${escapeHtml(payload.efectivoStoreace ?? 0)}</p>
-    <p><strong>Billetes Loomis:</strong> ${escapeHtml(payload.billetesLoomis ?? 0)}</p>
-    <p><strong>Monedas Loomis:</strong> ${escapeHtml(payload.monedasLoomis ?? 0)}</p>
-    <p><strong>Quebranto:</strong> ${escapeHtml(payload.quebranto ?? 0)}</p>
-    <p><strong>Observaciones de caja:</strong> ${escapeHtml(payload.observacionesCaja || "-")}</p>
+      <h2>Caja</h2>
+      <p><strong>Efectivo post de storeace:</strong> ${escapeHtml(payload.efectivoStoreace ?? 0)}</p>
+      <p><strong>Billetes Loomis:</strong> ${escapeHtml(payload.billetesLoomis ?? 0)}</p>
+      <p><strong>Monedas Loomis:</strong> ${escapeHtml(payload.monedasLoomis ?? 0)}</p>
+      <p><strong>Quebranto:</strong> ${escapeHtml(payload.quebranto ?? 0)}</p>
+      <p><strong>Observaciones de caja:</strong> ${escapeHtml(payload.observacionesCaja || "-")}</p>
 
-    <h2>Cierre</h2>
-    <p><strong>Comentario final:</strong> ${escapeHtml(payload.comentarioFinal || "-")}</p>
+      <h2>Cierre</h2>
+      <p><strong>Comentario final:</strong> ${escapeHtml(payload.comentarioFinal || "-")}</p>
+    </div>
   `;
 }
 
@@ -206,7 +208,7 @@ async function sendMailWithGraph(payload: PayloadType) {
   const to = process.env.FORM_TO || process.env.GRAPH_SENDER_USER;
 
   if (!sender || !to) {
-    throw new Error("Faltan GRAPH_SENDER_USER o FORM_TO en .env.local");
+    throw new Error("Faltan GRAPH_SENDER_USER o FORM_TO en las variables de entorno.");
   }
 
   const token = await getGraphToken();
@@ -252,6 +254,16 @@ async function sendMailWithGraph(payload: PayloadType) {
 export async function POST(req: NextRequest) {
   try {
     const payload = (await req.json()) as PayloadType;
+
+    if (!payload.fecha || !payload.encargado) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Faltan fecha o encargado.",
+        },
+        { status: 400 }
+      );
+    }
 
     await sendMailWithGraph(payload);
 
