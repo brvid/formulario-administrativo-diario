@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useForm } from "react-hook-form";
+import { upload } from "@vercel/blob/client";
 import type { FormDataType } from "@/types/form";
 
 const steps = [
@@ -14,10 +15,6 @@ const steps = [
   "Caja",
   "Cierre",
 ];
-
-const MAX_IMAGE_DIMENSION = 1280;
-const JPEG_QUALITY = 0.72;
-const MAX_TOTAL_REQUEST_BYTES = 4 * 1024 * 1024;
 
 type SubmitMessage =
   | {
@@ -156,62 +153,62 @@ export default function MultiStepForm() {
     setSubmitMessage(null);
 
     try {
+      const nulosConUrls = await Promise.all(
+        (data.nulos || []).map(async (nulo, index) => {
+          const [
+            fotoPedidoOriginalUrl,
+            fotoFacturaRectificativaUrl,
+            fotoNuevoPedidoUrl,
+          ] = await Promise.all([
+            nulo.fotoPedidoOriginal instanceof File
+              ? uploadFileToBlob(
+                  nulo.fotoPedidoOriginal,
+                  `formularios/nulos/${index + 1}/pedido-original`
+                )
+              : Promise.resolve(""),
+            nulo.fotoFacturaRectificativa instanceof File
+              ? uploadFileToBlob(
+                  nulo.fotoFacturaRectificativa,
+                  `formularios/nulos/${index + 1}/factura-rectificativa`
+                )
+              : Promise.resolve(""),
+            nulo.tieneNuevoPedido === "si" &&
+            nulo.fotoNuevoPedido instanceof File
+              ? uploadFileToBlob(
+                  nulo.fotoNuevoPedido,
+                  `formularios/nulos/${index + 1}/nuevo-pedido`
+                )
+              : Promise.resolve(""),
+          ]);
+
+          return {
+            horaPedido: nulo.horaPedido,
+            horaRectificativa: nulo.horaRectificativa,
+            cumpleMargen: nulo.cumpleMargen,
+            motivo: nulo.motivo,
+            tieneDosNombres: nulo.tieneDosNombres,
+            tieneDosFirmas: nulo.tieneDosFirmas,
+            tieneNuevoPedido: nulo.tieneNuevoPedido,
+            motivoSinNuevoPedido: nulo.motivoSinNuevoPedido || "",
+            fotoPedidoOriginalUrl,
+            fotoFacturaRectificativaUrl,
+            fotoNuevoPedidoUrl,
+          };
+        })
+      );
+
       const payload = {
         ...data,
         quebranto,
-        nulos: (data.nulos || []).map((nulo) => ({
-          horaPedido: nulo.horaPedido,
-          horaRectificativa: nulo.horaRectificativa,
-          cumpleMargen: nulo.cumpleMargen,
-          motivo: nulo.motivo,
-          tieneDosNombres: nulo.tieneDosNombres,
-          tieneDosFirmas: nulo.tieneDosFirmas,
-          tieneNuevoPedido: nulo.tieneNuevoPedido,
-          motivoSinNuevoPedido: nulo.motivoSinNuevoPedido || "",
-        })),
+        nulos: nulosConUrls,
       };
-
-      const formDataToSend = new FormData();
-      const payloadJson = JSON.stringify(payload);
-      formDataToSend.append("payload", payloadJson);
-
-      let totalBytes = new TextEncoder().encode(payloadJson).length;
-
-      for (const [index, nulo] of (data.nulos || []).entries()) {
-        if (nulo.fotoPedidoOriginal instanceof File) {
-          const compressed = await compressImage(nulo.fotoPedidoOriginal);
-          totalBytes += compressed.size;
-          formDataToSend.append(`nulos.${index}.fotoPedidoOriginal`, compressed);
-        }
-
-        if (nulo.fotoFacturaRectificativa instanceof File) {
-          const compressed = await compressImage(nulo.fotoFacturaRectificativa);
-          totalBytes += compressed.size;
-          formDataToSend.append(
-            `nulos.${index}.fotoFacturaRectificativa`,
-            compressed
-          );
-        }
-
-        if (
-          nulo.tieneNuevoPedido === "si" &&
-          nulo.fotoNuevoPedido instanceof File
-        ) {
-          const compressed = await compressImage(nulo.fotoNuevoPedido);
-          totalBytes += compressed.size;
-          formDataToSend.append(`nulos.${index}.fotoNuevoPedido`, compressed);
-        }
-      }
-
-      if (totalBytes > MAX_TOTAL_REQUEST_BYTES) {
-        throw new Error(
-          "Las imágenes siguen pesando demasiado para enviarse juntas. Reduce la cantidad de fotos o vuelve a hacerlas con menos resolución."
-        );
-      }
 
       const response = await fetch("/api/send-form", {
         method: "POST",
-        body: formDataToSend,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
       });
 
       const rawText = await response.text();
@@ -875,97 +872,31 @@ function timeToMinutes(value: string): number | null {
   return parts[0] * 60 + parts[1];
 }
 
-async function compressImage(file: File): Promise<File> {
-  if (!file.type.startsWith("image/")) {
-    return file;
-  }
+async function uploadFileToBlob(file: File, folder: string): Promise<string> {
+  const fileName = buildBlobFileName(file.name, folder);
 
-  const imageUrl = URL.createObjectURL(file);
-
-  try {
-    const image = await loadImage(imageUrl);
-
-    const { width, height } = getScaledDimensions(
-      image.width,
-      image.height,
-      MAX_IMAGE_DIMENSION
-    );
-
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      return file;
-    }
-
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, width, height);
-    ctx.drawImage(image, 0, 0, width, height);
-
-    const blob = await canvasToBlob(canvas, "image/jpeg", JPEG_QUALITY);
-    if (!blob) {
-      return file;
-    }
-
-    const compressedFile = new File(
-      [blob],
-      replaceExtensionWithJpg(file.name),
-      {
-        type: "image/jpeg",
-        lastModified: Date.now(),
-      }
-    );
-
-    return compressedFile.size < file.size ? compressedFile : file;
-  } finally {
-    URL.revokeObjectURL(imageUrl);
-  }
-}
-
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("No se pudo cargar la imagen."));
-    image.src = src;
+  const blob = await upload(fileName, file, {
+    access: "public",
+    handleUploadUrl: "/api/upload",
   });
+
+  return blob.url;
 }
 
-function getScaledDimensions(
-  originalWidth: number,
-  originalHeight: number,
-  maxDimension: number
-) {
-  if (originalWidth <= maxDimension && originalHeight <= maxDimension) {
-    return { width: originalWidth, height: originalHeight };
-  }
+function buildBlobFileName(originalName: string, folder: string) {
+  const cleanName = sanitizeFileName(originalName || "archivo");
+  const uniquePrefix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-  const ratio = Math.min(
-    maxDimension / originalWidth,
-    maxDimension / originalHeight
-  );
-
-  return {
-    width: Math.max(1, Math.round(originalWidth * ratio)),
-    height: Math.max(1, Math.round(originalHeight * ratio)),
-  };
+  return `${folder}/${uniquePrefix}-${cleanName}`;
 }
 
-function canvasToBlob(
-  canvas: HTMLCanvasElement,
-  type: string,
-  quality: number
-): Promise<Blob | null> {
-  return new Promise((resolve) => {
-    canvas.toBlob((blob) => resolve(blob), type, quality);
-  });
-}
-
-function replaceExtensionWithJpg(fileName: string) {
-  return fileName.replace(/\.[^/.]+$/, "") + ".jpg";
+function sanitizeFileName(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/[^a-zA-Z0-9._-]/g, "")
+    .toLowerCase();
 }
 
 function StepShell({
