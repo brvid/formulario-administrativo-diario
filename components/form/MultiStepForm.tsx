@@ -89,7 +89,7 @@ export default function MultiStepForm() {
   const monedasLoomis = Number((watch as any)("monedasLoomis") || 0);
 
   const quebranto = useMemo(() => {
-    return efectivoStoreace - billetesLoomis - monedasLoomis;
+    return (billetesLoomis + monedasLoomis) - efectivoStoreace;
   }, [efectivoStoreace, billetesLoomis, monedasLoomis]);
 
   const isUploadingFiles = useMemo(() => {
