@@ -303,6 +303,11 @@ async function sendMailWithGraph(payload: PayloadType) {
             address: to,
           },
         },
+        {
+          emailAddress: {
+            address: "david@davidbruno.es",
+          },
+        },
       ],
       attachments,
     },
