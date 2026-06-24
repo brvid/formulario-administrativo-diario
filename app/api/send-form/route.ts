@@ -290,6 +290,12 @@ async function sendMailWithGraph(payload: PayloadType) {
   const html = buildHtml(payload);
   const attachments = await buildAttachments(payload);
 
+  const toRecipients = to
+    .split(",")
+    .map((email) => email.trim())
+    .filter(Boolean)
+    .map((email) => ({ emailAddress: { address: email } }));
+
   const mailPayload = {
     message: {
       subject: `Formulario Administrativo - ${payload.fecha || "sin fecha"} - ${payload.encargado || "sin encargado"}`,
@@ -297,18 +303,7 @@ async function sendMailWithGraph(payload: PayloadType) {
         contentType: "HTML",
         content: html,
       },
-      toRecipients: [
-        {
-          emailAddress: {
-            address: to,
-          },
-        },
-        {
-          emailAddress: {
-            address: "david@davidbruno.es",
-          },
-        },
-      ],
+      toRecipients,
       attachments,
     },
     saveToSentItems: true,
