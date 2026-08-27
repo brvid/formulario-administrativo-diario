@@ -39,6 +39,9 @@ type UploadFieldName =
 
 export default function MultiStepForm() {
   const [step, setStep] = useState(0);
+  // Dirección del último cambio de paso. Sólo alimenta la animación:
+  // hacia delante entra por la derecha, hacia atrás por la izquierda.
+  const [dir, setDir] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<SubmitMessage>(null);
   const [uploadedFiles, setUploadedFiles] = useState<
@@ -92,6 +95,11 @@ export default function MultiStepForm() {
     return (billetesLoomis + monedasLoomis) - efectivoStoreace;
   }, [efectivoStoreace, billetesLoomis, monedasLoomis]);
 
+  // Sólo presentación: la desviación ya se deduce de dos campos observados.
+  const ticketsEsperados = Number(watch("ticketsEsperados") || 0);
+  const ticketsFinales = Number(watch("ticketsFinales") || 0);
+  const ticketsDelta = ticketsFinales - ticketsEsperados;
+
   const isUploadingFiles = useMemo(() => {
     return Object.values(uploadedFiles).some(
       (fileState) => fileState.status === "uploading"
@@ -120,7 +128,10 @@ export default function MultiStepForm() {
     setSubmitMessage(null);
   }, [step]);
 
-  const prev = () => setStep((prev) => Math.max(prev - 1, 0));
+  const prev = () => {
+    setDir(-1);
+    setStep((prev) => Math.max(prev - 1, 0));
+  };
 
   const next = async () => {
     setSubmitMessage(null);
@@ -147,6 +158,7 @@ export default function MultiStepForm() {
       return;
     }
 
+    setDir(1);
     setStep((prev) => Math.min(prev + 1, steps.length - 1));
   };
 
@@ -367,45 +379,40 @@ export default function MultiStepForm() {
   };
 
   return (
-    <main className="min-h-screen bg-[#f7f3ee] text-[#1f1b18]">
-      <div className="mx-auto flex min-h-screen w-full max-w-[1200px] flex-col px-4 py-5 sm:px-6 sm:py-6 md:px-10 md:py-8 lg:px-16">
-        <div className="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-          <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-[0.32em] text-black/35 sm:text-[11px] sm:tracking-[0.35em]">
-              Formulario Administrativo Diario
-            </p>
-          </div>
+    <main className="app">
+      <div className="shell">
+        <div className="topbar">
+          <p className="topbar-brand">Parte administrativo diario</p>
 
-          <div className="w-full sm:min-w-[180px] sm:max-w-[220px]">
-            <div className="mb-2 flex items-center justify-between text-[11px] text-black/45 sm:text-xs">
-              <span>Paso</span>
-              <span>
-                {step + 1} / {steps.length}
-              </span>
-            </div>
+          <p className="topbar-count">
+            <span key={step} className="count-swap">
+              <b>{String(step + 1).padStart(2, "0")}</b> / {steps.length}
+            </span>
+          </p>
+        </div>
 
-            <div className="h-[3px] w-full overflow-hidden rounded-full bg-black/8">
-              <div
-                className="h-full rounded-full bg-[#1f1b18] transition-all duration-300"
-                style={{ width: `${((step + 1) / steps.length) * 100}%` }}
-              />
-            </div>
-          </div>
+        <div className="progress">
+          <span
+            className="progress-fill"
+            style={{
+              transform: `scaleX(${(step + 1) / steps.length})`,
+            }}
+          />
         </div>
 
         <form
           onSubmit={(e) => e.preventDefault()}
           noValidate
-          className="flex min-h-[calc(100vh-110px)] flex-1 flex-col justify-between sm:min-h-[78vh]"
+          className="flex flex-1 flex-col justify-between"
         >
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={step}
-              initial={{ opacity: 0, y: 22 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -22 }}
-              transition={{ duration: 0.22 }}
-              className="w-full max-w-[760px]"
+              initial={{ opacity: 0, x: dir * 18 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: dir * -18 }}
+              transition={{ duration: 0.17, ease: [0.23, 1, 0.32, 1] }}
+              className="w-full max-w-[820px]"
             >
               {step === 0 && (
                 <StepShell
@@ -413,9 +420,14 @@ export default function MultiStepForm() {
                   title="Vamos a revisar el día."
                   description="Completa el control administrativo diario de forma rápida, clara y ordenada."
                 >
-                  <div className="max-w-[580px] rounded-[22px] border border-black/8 bg-white/35 p-4 text-sm leading-7 text-black/60 sm:rounded-[28px] sm:p-6 sm:text-base sm:leading-8">
-                    Tendrás que revisar nulos, comida personal, caja y cierre.
-                    Iremos paso a paso, como en un flujo conversacional.
+                  <div className="enter notice" style={{ "--i": 4 } as never}>
+                    <span className="notice-icon">
+                      <InfoIcon />
+                    </span>
+                    <span>
+                      Vas a revisar nulos, comida personal, caja y cierre. Iremos
+                      paso a paso: cada pantalla te pide sólo lo que necesita.
+                    </span>
                   </div>
                 </StepShell>
               )}
@@ -456,7 +468,7 @@ export default function MultiStepForm() {
                     />
                   </Field>
 
-                  {incidencia === "si" && (
+                  <Reveal open={incidencia === "si"}>
                     <Field>
                       <label>Describe brevemente la incidencia</label>
                       <textarea
@@ -465,7 +477,7 @@ export default function MultiStepForm() {
                         {...register("descripcionIncidencia")}
                       />
                     </Field>
-                  )}
+                  </Reveal>
                 </StepShell>
               )}
 
@@ -547,13 +559,18 @@ export default function MultiStepForm() {
                         return (
                           <div
                             key={index}
-                            className="rounded-[22px] border border-black/8 bg-white/40 p-4 sm:rounded-[26px] sm:p-6"
+                            className="card"
+                            style={{ "--i": Math.min(index, 5) } as never}
                           >
-                            <h3 className="mb-5 text-xl font-semibold tracking-[-0.02em] sm:mb-6 sm:text-2xl">
-                              Nulo {index + 1}
-                            </h3>
+                            <div className="card-head">
+                              <h3 className="card-title">Nulo {index + 1}</h3>
+                              <span className="card-index">
+                                {String(index + 1).padStart(2, "0")} /{" "}
+                                {String(numeroNulos || 0).padStart(2, "0")}
+                              </span>
+                            </div>
 
-                            <div className="grid gap-5 md:grid-cols-2 md:gap-6">
+                            <div className="card-grid">
                               <Field>
                                 <label>Hora del pedido realizado</label>
                                 <input
@@ -643,7 +660,7 @@ export default function MultiStepForm() {
                               <Field>
                                 <label>Foto del pedido original</label>
                                 <FileUploadField
-                                  fileName={fotoPedidoOriginal?.name}
+                                  file={fotoPedidoOriginal}
                                   uploadState={uploadPedidoOriginal}
                                   onChange={(file) =>
                                     handleFileSelected(
@@ -659,7 +676,7 @@ export default function MultiStepForm() {
                               <Field>
                                 <label>Foto de la factura rectificativa</label>
                                 <FileUploadField
-                                  fileName={fotoFacturaRectificativa?.name}
+                                  file={fotoFacturaRectificativa}
                                   uploadState={uploadFacturaRectificativa}
                                   onChange={(file) =>
                                     handleFileSelected(
@@ -672,7 +689,7 @@ export default function MultiStepForm() {
                                 />
                               </Field>
 
-                              <Field className="md:col-span-2">
+                              <Field className="span-2">
                                 <label>¿Está el nuevo pedido adjunto?</label>
                                 <ChoiceChips
                                   value={tieneNuevoPedido}
@@ -690,10 +707,10 @@ export default function MultiStepForm() {
                               </Field>
 
                               {tieneNuevoPedido === "si" && (
-                                <Field className="md:col-span-2">
+                                <Field className="span-2">
                                   <label>Foto del nuevo pedido</label>
                                   <FileUploadField
-                                    fileName={fotoNuevoPedido?.name}
+                                    file={fotoNuevoPedido}
                                     uploadState={uploadNuevoPedido}
                                     onChange={(file) =>
                                       handleFileSelected(
@@ -708,7 +725,7 @@ export default function MultiStepForm() {
                               )}
 
                               {tieneNuevoPedido === "no" && (
-                                <Field className="md:col-span-2">
+                                <Field className="span-2">
                                   <label>
                                     Explica por qué no está adjunto el nuevo pedido
                                   </label>
@@ -794,6 +811,15 @@ export default function MultiStepForm() {
                           type="number"
                           {...register("ticketsFinales", { valueAsNumber: true })}
                         />
+                        {ticketsDelta !== 0 && (
+                          <span className="delta">
+                            <AlertIcon />
+                            {ticketsDelta > 0 ? "+" : "−"}
+                            {Math.abs(ticketsDelta)}{" "}
+                            {Math.abs(ticketsDelta) === 1 ? "ticket" : "tickets"}{" "}
+                            respecto a lo esperado
+                          </span>
+                        )}
                       </Field>
 
                       <Field>
@@ -819,13 +845,18 @@ export default function MultiStepForm() {
                         (_, index) => (
                           <div
                             key={index}
-                            className="rounded-[22px] border border-black/8 bg-white/40 p-4 sm:rounded-[26px] sm:p-6"
+                            className="card"
+                            style={{ "--i": Math.min(index, 5) } as never}
                           >
-                            <h3 className="mb-5 text-xl font-semibold tracking-[-0.02em] sm:mb-6 sm:text-2xl">
-                              Persona {index + 1}
-                            </h3>
+                            <div className="card-head">
+                              <h3 className="card-title">Persona {index + 1}</h3>
+                              <span className="card-index">
+                                {String(index + 1).padStart(2, "0")} /{" "}
+                                {String(numeroPersonasComida || 0).padStart(2, "0")}
+                              </span>
+                            </div>
 
-                            <div className="grid gap-5 md:grid-cols-2 md:gap-6">
+                            <div className="card-grid">
                               <Field>
                                 <label>Nombre</label>
                                 <input
@@ -903,22 +934,56 @@ export default function MultiStepForm() {
                     />
                   </Field>
 
-                  <div className="rounded-[22px] bg-[#1f1b18] px-5 py-6 text-white sm:rounded-[28px] sm:px-7 sm:py-8">
-                    <p className="text-[10px] uppercase tracking-[0.28em] text-white/50 sm:text-[11px] sm:tracking-[0.32em]">
-                      Quebranto calculado
-                    </p>
-                    <p className="mt-3 text-3xl font-semibold tracking-[-0.03em] sm:text-4xl lg:text-5xl">
-                      {Number.isFinite(quebranto) ? quebranto.toFixed(2) : "0.00"} €
-                    </p>
-                  </div>
+                  <QuebrantoCard
+                    quebranto={quebranto}
+                    efectivo={efectivoStoreace}
+                    billetes={billetesLoomis}
+                    monedas={monedasLoomis}
+                  />
                 </StepShell>
               )}
 
-              {step === 5 && (
+              {step === 5 && submitMessage?.type === "success" && (
+                <div className="confirm">
+                  <span className="confirm-mark">
+                    <CheckIcon size={24} tone="var(--pos)" />
+                  </span>
+
+                  <div>
+                    <p className="step-eyebrow">Día cerrado</p>
+                    <h2 className="confirm-title">Parte enviado.</h2>
+                    <p className="step-desc">
+                      Ya está en el correo del restaurante. Puedes cerrar esta
+                      pantalla.
+                    </p>
+                  </div>
+
+                  <div className="confirm-list">
+                    <div className="confirm-row" style={{ "--i": 0 } as never}>
+                      <span>Fecha</span>
+                      <b>{formatFechaCorta(getValues("fecha"))}</b>
+                    </div>
+                    <div className="confirm-row" style={{ "--i": 1 } as never}>
+                      <span>Encargado</span>
+                      <b>{getValues("encargado") || "—"}</b>
+                    </div>
+                    <div className="confirm-row" style={{ "--i": 2 } as never}>
+                      <span>Quebranto</span>
+                      <b>{formatEuros(quebranto)}</b>
+                    </div>
+                    <div className="confirm-row" style={{ "--i": 3 } as never}>
+                      <span>Imágenes adjuntas</span>
+                      <b>{uploadSummary.uploaded}</b>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {step === 5 && submitMessage?.type !== "success" && (
                 <StepShell
                   eyebrow="Cierre"
                   title="Último paso."
-                  description="Primero añade una observación final. Después pulsa el botón para enviar el formulario."
+                  description="Añade una observación final si hace falta y envía el parte."
                 >
                   <Field>
                     <label>Comentario final del encargado</label>
@@ -934,57 +999,87 @@ export default function MultiStepForm() {
                   )}
 
                   {submitMessage && (
-                    <div
-                      className={`rounded-[22px] border px-5 py-4 text-sm sm:rounded-[26px] ${
-                        submitMessage.type === "success"
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                          : "border-red-200 bg-red-50 text-red-700"
-                      }`}
-                    >
-                      {submitMessage.text}
+                    <div className="notice" data-tone="error">
+                      <span className="notice-icon">
+                        <AlertIcon />
+                      </span>
+                      <span>{submitMessage.text}</span>
                     </div>
                   )}
 
-                  <div className="rounded-[22px] border border-dashed border-black/12 bg-white/25 p-4 text-sm leading-7 text-black/55 sm:rounded-[26px] sm:p-6">
-                    Las imágenes se suben al seleccionarlas. Cuando todas estén en
-                    verde, el botón final enviará solo el formulario con sus URLs.
+                  <div className="notice" data-tone="info">
+                    <span className="notice-icon">
+                      <InfoIcon />
+                    </span>
+                    <span>
+                      Las imágenes se suben al seleccionarlas. Cuando todas estén
+                      confirmadas, el botón enviará el parte con sus enlaces.
+                    </span>
                   </div>
                 </StepShell>
               )}
             </motion.div>
           </AnimatePresence>
 
-          <div className="mt-10 flex flex-col-reverse gap-3 pt-6 sm:mt-14 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:pt-8">
-            <button
-              type="button"
-              onClick={prev}
-              disabled={step === 0 || isSubmitting}
-              className="w-full rounded-full border border-black/10 px-5 py-3 text-sm font-medium text-black/70 transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-30 sm:w-auto"
-            >
-              Anterior
-            </button>
+          {step < 5 && submitMessage?.type === "error" && (
+            <div className="mt-8 max-w-[820px]">
+              <div className="notice" data-tone="error">
+                <span className="notice-icon">
+                  <AlertIcon />
+                </span>
+                <span>{submitMessage.text}</span>
+              </div>
+            </div>
+          )}
+
+          <div className="nav">
+            {step > 0 && (
+              <button
+                type="button"
+                onClick={prev}
+                disabled={isSubmitting}
+                className="btn btn-ghost"
+              >
+                Atrás
+              </button>
+            )}
 
             {step < steps.length - 1 ? (
               <button
                 type="button"
                 onClick={next}
                 disabled={isSubmitting}
-                className="w-full rounded-full bg-[#1f1b18] px-6 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                className="btn btn-primary"
               >
-                Siguiente
+                <span className="btn-label">Siguiente</span>
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => handleSubmit(onSubmit, onInvalid)()}
                 disabled={isSubmitting || isUploadingFiles}
-                className="w-full rounded-full bg-[#1f1b18] px-6 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                className="btn btn-primary"
               >
-                {isSubmitting
-                  ? "Enviando..."
-                  : isUploadingFiles
-                    ? "Esperando subida de imágenes..."
-                    : "Finalizar y enviar"}
+                {isSubmitting ? (
+                  <span key="sending" className="btn-label">
+                    <Spinner />
+                    Enviando
+                  </span>
+                ) : isUploadingFiles ? (
+                  <span key="waiting" className="btn-label">
+                    <Spinner />
+                    Esperando imágenes
+                  </span>
+                ) : submitMessage?.type === "success" ? (
+                  <span key="sent" className="btn-label">
+                    <CheckIcon />
+                    Enviado
+                  </span>
+                ) : (
+                  <span key="idle" className="btn-label">
+                    Finalizar y enviar
+                  </span>
+                )}
               </button>
             )}
           </div>
@@ -1049,6 +1144,23 @@ function sanitizeFileName(value: string) {
     .toLowerCase();
 }
 
+function formatFechaCorta(value?: string) {
+  if (!value) return "—";
+
+  const parts = value.split("-");
+  if (parts.length !== 3) return value;
+
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+}
+
+function formatEuros(value: number) {
+  const safe = Number.isFinite(value) ? value : 0;
+  const abs = Math.abs(safe).toFixed(2).replace(".", ",");
+  const sign = safe < 0 ? "−" : safe > 0 ? "+" : "";
+
+  return `${sign}${abs} €`;
+}
+
 function StepShell({
   eyebrow,
   title,
@@ -1061,20 +1173,22 @@ function StepShell({
   children?: ReactNode;
 }) {
   return (
-    <div className="pt-2 sm:pt-6 md:pt-10">
-      <p className="mb-4 text-[10px] uppercase tracking-[0.32em] text-[#c7783d] sm:mb-6 sm:text-[11px] sm:tracking-[0.35em]">
+    <div className="step">
+      <p className="step-eyebrow enter" style={{ "--i": 0 } as never}>
         {eyebrow}
       </p>
 
-      <h2 className="max-w-[680px] text-4xl font-semibold leading-[1.02] tracking-[-0.03em] text-[#1f1b18] sm:text-5xl lg:text-7xl">
+      <h2 className="step-title enter" style={{ "--i": 1 } as never}>
         {title}
       </h2>
 
-      <p className="mt-4 max-w-[560px] text-base leading-7 text-black/55 sm:mt-6 sm:text-lg sm:leading-8">
+      <p className="step-desc enter" style={{ "--i": 2 } as never}>
         {description}
       </p>
 
-      <div className="mt-10 space-y-6 sm:mt-14 sm:space-y-8">{children}</div>
+      <div className="step-fields enter" style={{ "--i": 3 } as never}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -1086,11 +1200,30 @@ function Field({
   children: ReactNode;
   className?: string;
 }) {
-  return <div className={`space-y-3 ${className}`}>{children}</div>;
+  return <div className={`field ${className}`}>{children}</div>;
+}
+
+/**
+ * Despliega contenido animando la altura sin medirla en JS.
+ * El contenido sigue montado siempre — react-hook-form conserva el valor
+ * exactamente igual que antes — pero queda inerte cuando está cerrado.
+ */
+function Reveal({ open, children }: { open: boolean; children: ReactNode }) {
+  return (
+    <div className="reveal" data-open={open} aria-hidden={!open}>
+      <div className="reveal-inner" inert={!open}>
+        {children}
+      </div>
+    </div>
+  );
 }
 
 function ErrorText() {
-  return <p className="text-sm text-[#c65a3a]">Este campo es obligatorio.</p>;
+  return (
+    <p className="mt-2 text-[13px] text-[var(--neg)]">
+      Este campo es obligatorio.
+    </p>
+  );
 }
 
 function ChoiceChips({
@@ -1102,8 +1235,12 @@ function ChoiceChips({
   onChange: (value: string) => void;
   options: { label: string; value: string }[];
 }) {
+  const selected = options.findIndex((option) => option.value === value);
+
   return (
-    <div className="grid grid-cols-1 gap-3 pt-2 sm:flex sm:flex-wrap">
+    <div className="chips" data-sel={selected >= 0 ? selected : undefined}>
+      <span className="chips-ind" />
+
       {options.map((option) => {
         const active = value === option.value;
 
@@ -1111,12 +1248,9 @@ function ChoiceChips({
           <button
             key={option.value}
             type="button"
+            aria-pressed={active}
             onClick={() => onChange(option.value)}
-            className={`min-h-[48px] w-full rounded-2xl border px-4 py-3 text-sm font-medium transition sm:w-auto sm:rounded-full sm:px-5 sm:text-base ${
-              active
-                ? "border-[#1f1b18] bg-[#1f1b18] text-white shadow-sm"
-                : "border-black/10 bg-white text-[#1f1b18] hover:border-black/20 hover:bg-black/[0.03]"
-            }`}
+            className="chip"
           >
             {option.label}
           </button>
@@ -1126,6 +1260,11 @@ function ChoiceChips({
   );
 }
 
+/**
+ * El veredicto se pinta con un barrido de color de izquierda a derecha y los
+ * tres textos se cruzan tras un desenfoque de 2 px. Sin el blur se ven dos
+ * cajas solapándose; con él se lee como una sola cosa transformándose.
+ */
 function AutoCalculatedStatus({
   value,
   emptyText,
@@ -1137,27 +1276,85 @@ function AutoCalculatedStatus({
   yesText: string;
   noText: string;
 }) {
-  if (!value) {
-    return (
-      <div className="rounded-2xl border border-black/8 bg-white/60 px-4 py-4 text-sm text-black/55">
-        {emptyText}
-      </div>
-    );
-  }
-
-  const isYes = value === "si";
-
   return (
-    <div
-      className={`rounded-2xl border px-4 py-4 text-sm font-medium ${
-        isYes
-          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-          : "border-red-200 bg-red-50 text-red-700"
-      }`}
-    >
-      {isYes ? yesText : noText}
+    <div className="status" data-state={value || "empty"}>
+      <span className="status-fill" />
+
+      <span className="status-lines">
+        <span className="status-line" data-show={!value}>
+          {emptyText}
+        </span>
+        <span className="status-line" data-tone="si" data-show={value === "si"}>
+          {yesText}
+        </span>
+        <span className="status-line" data-tone="no" data-show={value === "no"}>
+          {noText}
+        </span>
+      </span>
     </div>
   );
+}
+
+function QuebrantoCard({
+  quebranto,
+  efectivo,
+  billetes,
+  monedas,
+}: {
+  quebranto: number;
+  efectivo: number;
+  billetes: number;
+  monedas: number;
+}) {
+  const safe = Number.isFinite(quebranto) ? quebranto : 0;
+  const rounded = Math.round(safe * 100) / 100;
+
+  // Convenio: negativo = falta en caja, positivo = sobra. Las dos cosas son
+  // un descuadre, así que ninguna se pinta de verde; sólo el cero cuadra.
+  const sign = rounded < 0 ? "neg" : rounded > 0 ? "pos" : "zero";
+  const veredicto =
+    rounded < 0 ? "Falta en caja" : rounded > 0 ? "Sobra en caja" : "Caja cuadrada";
+  const text = formatEuros(rounded);
+
+  return (
+    <div className="queb" data-sign={sign}>
+      <p className="queb-key">Quebranto calculado</p>
+
+      {/* La key hace que la cifra vuelva a entrar cada vez que cambia */}
+      <p className="queb-value">
+        <span key={text} className="queb-roll">
+          {text}
+        </span>
+      </p>
+
+      <p className="queb-verdict">
+        <span key={veredicto} className="queb-roll">
+          {veredicto}
+        </span>
+      </p>
+
+      {/* El orden refleja la resta que se está haciendo */}
+      <div className="ledger">
+        <div className="ledger-row">
+          <span>Billetes Loomis</span>
+          <span>{formatAmount(billetes)}</span>
+        </div>
+        <div className="ledger-row">
+          <span>Monedas Loomis</span>
+          <span>{formatAmount(monedas)}</span>
+        </div>
+        <div className="ledger-row">
+          <span>Efectivo post de Storeace</span>
+          <span>−{formatAmount(efectivo)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function formatAmount(value: number) {
+  const safe = Number.isFinite(value) ? value : 0;
+  return safe.toFixed(2).replace(".", ",");
 }
 
 function UploadSummaryCard({
@@ -1172,29 +1369,32 @@ function UploadSummaryCard({
   };
 }) {
   return (
-    <div className="rounded-[22px] border border-black/8 bg-white/55 p-4 sm:rounded-[26px] sm:p-6">
-      <div className="flex items-center justify-between gap-3">
+    <div className="summary">
+      <div className="summary-top">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.28em] text-black/45 sm:text-[11px]">
-            Estado de imágenes
-          </p>
-          <p className="mt-2 text-sm font-medium text-[#1f1b18] sm:text-base">
-            {summary.uploaded} de {summary.totalSelected} subidas
+          <p className="summary-key">Estado de imágenes</p>
+          <p className="summary-value">
+            <b>{summary.uploaded}</b> de <b>{summary.totalSelected}</b> subidas
           </p>
         </div>
 
-        <div className="text-right text-sm text-black/55">
-          {summary.uploading > 0 && <p>Subiendo: {summary.uploading}</p>}
+        <div className="summary-aside">
+          {summary.uploading > 0 && <span>Subiendo {summary.uploading}</span>}
           {summary.error > 0 && (
-            <p className="text-red-700">Con error: {summary.error}</p>
+            <span style={{ color: "var(--neg)" }}>
+              Con error {summary.error}
+            </span>
+          )}
+          {summary.uploading === 0 && summary.error === 0 && (
+            <span style={{ color: "var(--pos)" }}>Listas</span>
           )}
         </div>
       </div>
 
-      <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-black/8">
-        <div
-          className="h-full rounded-full bg-[#1f1b18] transition-all duration-300"
-          style={{ width: `${summary.progressPercent}%` }}
+      <div className="progress">
+        <span
+          className="progress-fill"
+          style={{ transform: `scaleX(${summary.progressPercent / 100})` }}
         />
       </div>
     </div>
@@ -1202,62 +1402,219 @@ function UploadSummaryCard({
 }
 
 function FileUploadField({
-  fileName,
+  file,
   uploadState,
   onChange,
 }: {
-  fileName?: string;
+  file?: File | null;
   uploadState?: UploadedFileState;
   onChange: (file: File | null) => void | Promise<void>;
 }) {
+  const [isDragging, setIsDragging] = useState(false);
   const status = uploadState?.status || "idle";
+  const previewUrl = useObjectUrl(file);
 
   return (
-    <div className="rounded-[20px] border border-dashed border-black/12 bg-white/70 p-4">
-      <input
-        type="file"
-        accept="image/*"
-        className="!w-full !border-0 !p-0 !text-sm !leading-6 file:mr-3 file:rounded-full file:border-0 file:bg-[#1f1b18] file:px-4 file:py-2 file:text-sm file:font-medium file:text-white"
-        onChange={(e) => {
-          void onChange(e.target.files?.[0] ?? null);
-        }}
-      />
+    <div
+      className="uploader"
+      data-status={status}
+      data-drag={isDragging}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setIsDragging(true);
+      }}
+      onDragLeave={() => setIsDragging(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setIsDragging(false);
+        void onChange(e.dataTransfer.files?.[0] ?? null);
+      }}
+    >
+      <label className="uploader-pick">
+        <input
+          type="file"
+          accept="image/*"
+          onChange={(e) => {
+            void onChange(e.target.files?.[0] ?? null);
+          }}
+        />
+        <span className="uploader-btn">
+          {file ? "Cambiar foto" : "Elegir foto"}
+        </span>
+        <span className="uploader-hint">
+          {file ? file.name : "o arrastra la imagen aquí"}
+        </span>
+      </label>
 
-      <p className="mt-3 text-sm text-black/45">
-        {fileName
-          ? `Archivo seleccionado: ${fileName}`
-          : "No se ha subido ninguna imagen todavía."}
-      </p>
+      {file && (
+        <div className="uploader-preview">
+          <span className="uploader-thumb" data-status={status}>
+            {/* blob: local del archivo elegido — next/image no puede optimizarlo */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {previewUrl && <img src={previewUrl} alt="" />}
+          </span>
 
-      {status === "uploading" && (
-        <p className="mt-2 text-sm font-medium text-amber-700">
-          Subiendo imagen...
-        </p>
-      )}
+          <span className="uploader-meta">
+            <span className="uploader-name">{file.name}</span>
 
-      {status === "uploaded" && (
-        <div className="mt-2 space-y-1">
-          <p className="text-sm font-medium text-emerald-700">
-            Imagen subida correctamente.
-          </p>
-          {uploadState?.url && (
-            <a
-              href={uploadState.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex text-sm text-emerald-800 underline underline-offset-2"
-            >
-              Ver imagen subida
-            </a>
-          )}
+            {status === "uploading" && (
+              <span className="uploader-state" data-tone="uploading">
+                <Spinner size={12} />
+                Subiendo
+              </span>
+            )}
+
+            {status === "uploaded" && (
+              <span className="uploader-state" data-tone="uploaded">
+                <CheckIcon size={13} tone="var(--pos)" />
+                Subida
+              </span>
+            )}
+
+            {status === "error" && (
+              <span className="uploader-state" data-tone="error">
+                <AlertIcon size={13} />
+                {uploadState?.error || "No se pudo subir."}
+              </span>
+            )}
+
+            {status === "uploaded" && uploadState?.url && (
+              <a
+                href={uploadState.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="uploader-link"
+              >
+                Ver imagen
+              </a>
+            )}
+          </span>
         </div>
       )}
-
-      {status === "error" && (
-        <p className="mt-2 text-sm font-medium text-red-700">
-          {uploadState?.error || "No se pudo subir la imagen."}
-        </p>
-      )}
     </div>
+  );
+}
+
+/** Miniatura local del archivo elegido. No toca la subida. */
+function useObjectUrl(file?: File | null) {
+  const url = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
+
+  useEffect(() => {
+    if (!url) return;
+
+    return () => URL.revokeObjectURL(url);
+  }, [url]);
+
+  return url;
+}
+
+function Spinner({ size = 14 }: { size?: number }) {
+  return (
+    <svg
+      className="spinner"
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+    >
+      <circle
+        cx="8"
+        cy="8"
+        r="6.5"
+        stroke="currentColor"
+        strokeOpacity="0.25"
+        strokeWidth="2"
+      />
+      <path
+        d="M14.5 8A6.5 6.5 0 0 0 8 1.5"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function CheckIcon({
+  size = 14,
+  tone = "currentColor",
+}: {
+  size?: number;
+  tone?: string;
+}) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        className="check-path"
+        d="M3.5 8.5 6.5 11.5 12.5 4.5"
+        stroke={tone}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function AlertIcon({ size = 15 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M8 5.5v3.2"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+      <circle cx="8" cy="11.2" r="0.9" fill="currentColor" />
+      <circle
+        cx="8"
+        cy="8"
+        r="6.4"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeOpacity="0.55"
+      />
+    </svg>
+  );
+}
+
+function InfoIcon({ size = 15 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M8 7.4v3.4"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+      <circle cx="8" cy="4.9" r="0.9" fill="currentColor" />
+      <circle
+        cx="8"
+        cy="8"
+        r="6.4"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeOpacity="0.5"
+      />
+    </svg>
   );
 }

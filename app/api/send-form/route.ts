@@ -1,71 +1,22 @@
 import { get } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
+import {
+  buildHtml,
+  buildSubject,
+  contentIdFor,
+  type PayloadType,
+} from "@/lib/mail-template";
 
 export const runtime = "nodejs";
-
-type NuloPayload = {
-  horaPedido?: string;
-  horaRectificativa?: string;
-  cumpleMargen?: "si" | "no" | "";
-  motivo?: string;
-  tieneDosNombres?: "si" | "no" | "";
-  tieneDosFirmas?: "si" | "no" | "";
-  tieneNuevoPedido?: "si" | "no" | "";
-  motivoSinNuevoPedido?: string;
-  fotoPedidoOriginalUrl?: string;
-  fotoFacturaRectificativaUrl?: string;
-  fotoNuevoPedidoUrl?: string;
-};
-
-type ComidaPayload = {
-  nombre?: string;
-  hora?: string;
-};
-
-type PayloadType = {
-  fecha?: string;
-  encargado?: string;
-  incidencia?: "si" | "no" | "";
-  descripcionIncidencia?: string;
-  haHabidoNulos?: "si" | "no" | "";
-  numeroNulos?: number;
-  nulos?: NuloPayload[];
-  haHabidoComida?: "si" | "no" | "";
-  personasConDerecho?: number;
-  ticketsEsperados?: number;
-  ticketsFinales?: number;
-  personasSinTicar?: string;
-  numeroPersonasComida?: number;
-  comidas?: ComidaPayload[];
-  efectivoStoreace?: number;
-  billetesLoomis?: number;
-  monedasLoomis?: number;
-  observacionesCaja?: string;
-  comentarioFinal?: string;
-  quebranto?: number;
-};
 
 type GraphFileAttachment = {
   "@odata.type": "#microsoft.graph.fileAttachment";
   name: string;
   contentType: string;
   contentBytes: string;
+  contentId: string;
+  isInline: boolean;
 };
-
-function escapeHtml(text: string | number | null | undefined) {
-  return String(text ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-function formatSiNo(value?: string) {
-  if (value === "si") return "Sí";
-  if (value === "no") return "No";
-  return "-";
-}
 
 function extractPrivateBlobPathname(blobUrl?: string) {
   if (!blobUrl) return null;
@@ -95,7 +46,8 @@ async function readStreamToBuffer(
 
 async function buildGraphAttachmentFromPrivateBlob(
   blobUrl: string | undefined,
-  fallbackFilename: string
+  fallbackFilename: string,
+  contentId: string
 ): Promise<GraphFileAttachment | null> {
   const pathname = extractPrivateBlobPathname(blobUrl);
 
@@ -108,13 +60,18 @@ async function buildGraphAttachmentFromPrivateBlob(
   }
 
   const buffer = await readStreamToBuffer(result.stream);
-  const fileName = pathname.split("/").pop() || fallbackFilename;
+  const extension = (pathname.split(".").pop() || "jpg").toLowerCase();
 
   return {
     "@odata.type": "#microsoft.graph.fileAttachment",
-    name: fileName,
+    // Nombre legible en vez del blob con prefijo aleatorio: así el adjunto
+    // se identifica solo si alguien lo descarga.
+    name: fallbackFilename.replace(/\.[^.]+$/, `.${extension}`),
     contentType: result.blob.contentType || "application/octet-stream",
     contentBytes: buffer.toString("base64"),
+    // Deja que el cuerpo la muestre con <img src="cid:…"> junto a su nulo.
+    contentId,
+    isInline: true,
   };
 }
 
@@ -170,81 +127,6 @@ async function getGraphToken() {
   return data.access_token as string;
 }
 
-function buildHtml(payload: PayloadType) {
-  const nulos = payload.nulos || [];
-  const comidas = payload.comidas || [];
-
-  return `
-    <div style="font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #1f1b18;">
-      <h1>Formulario Administrativo Diario</h1>
-
-      <h2>Datos generales</h2>
-      <p><strong>Fecha:</strong> ${escapeHtml(payload.fecha || "-")}</p>
-      <p><strong>Encargado:</strong> ${escapeHtml(payload.encargado || "-")}</p>
-      <p><strong>¿Incidencia?:</strong> ${formatSiNo(payload.incidencia)}</p>
-      <p><strong>Descripción incidencia:</strong> ${escapeHtml(payload.descripcionIncidencia || "-")}</p>
-
-      <h2>Nulos</h2>
-      <p><strong>¿Ha habido nulos?:</strong> ${formatSiNo(payload.haHabidoNulos)}</p>
-      <p><strong>Número de nulos:</strong> ${escapeHtml(payload.numeroNulos ?? 0)}</p>
-
-      ${
-        nulos.length
-          ? nulos
-              .map(
-                (nulo, index) => `
-        <hr />
-        <h3>Nulo ${index + 1}</h3>
-        <p><strong>Hora pedido:</strong> ${escapeHtml(nulo.horaPedido || "-")}</p>
-        <p><strong>Hora rectificativa:</strong> ${escapeHtml(nulo.horaRectificativa || "-")}</p>
-        <p><strong>¿Cumple margen?:</strong> ${formatSiNo(nulo.cumpleMargen)}</p>
-        <p><strong>Motivo:</strong> ${escapeHtml(nulo.motivo || "-")}</p>
-        <p><strong>¿Dos nombres?:</strong> ${formatSiNo(nulo.tieneDosNombres)}</p>
-        <p><strong>¿Dos firmas?:</strong> ${formatSiNo(nulo.tieneDosFirmas)}</p>
-        <p><strong>¿Nuevo pedido adjunto?:</strong> ${formatSiNo(nulo.tieneNuevoPedido)}</p>
-        <p><strong>Motivo sin nuevo pedido:</strong> ${escapeHtml(nulo.motivoSinNuevoPedido || "-")}</p>
-        <p><strong>Adjuntos:</strong> Las imágenes de este nulo van adjuntas en el correo.</p>
-      `
-              )
-              .join("")
-          : "<p>No hay nulos registrados.</p>"
-      }
-
-      <h2>Comida personal</h2>
-      <p><strong>¿Ha habido comida personal?:</strong> ${formatSiNo(payload.haHabidoComida)}</p>
-      <p><strong>Personas con derecho:</strong> ${escapeHtml(payload.personasConDerecho ?? 0)}</p>
-      <p><strong>Tickets esperados:</strong> ${escapeHtml(payload.ticketsEsperados ?? 0)}</p>
-      <p><strong>Tickets finales:</strong> ${escapeHtml(payload.ticketsFinales ?? 0)}</p>
-      <p><strong>Personas sin ticar:</strong> ${escapeHtml(payload.personasSinTicar || "-")}</p>
-      <p><strong>Número de personas comida:</strong> ${escapeHtml(payload.numeroPersonasComida ?? 0)}</p>
-
-      ${
-        comidas.length
-          ? comidas
-              .map(
-                (comida, index) => `
-        <hr />
-        <h3>Persona ${index + 1}</h3>
-        <p><strong>Nombre:</strong> ${escapeHtml(comida.nombre || "-")}</p>
-        <p><strong>Hora:</strong> ${escapeHtml(comida.hora || "-")}</p>
-      `
-              )
-              .join("")
-          : "<p>No hay personas registradas en comida.</p>"
-      }
-
-      <h2>Caja</h2>
-      <p><strong>Efectivo post de storeace:</strong> ${escapeHtml(payload.efectivoStoreace ?? 0)}</p>
-      <p><strong>Billetes Loomis:</strong> ${escapeHtml(payload.billetesLoomis ?? 0)}</p>
-      <p><strong>Monedas Loomis:</strong> ${escapeHtml(payload.monedasLoomis ?? 0)}</p>
-      <p><strong>Quebranto:</strong> ${escapeHtml(payload.quebranto ?? 0)}</p>
-      <p><strong>Observaciones de caja:</strong> ${escapeHtml(payload.observacionesCaja || "-")}</p>
-
-      <h2>Cierre</h2>
-      <p><strong>Comentario final:</strong> ${escapeHtml(payload.comentarioFinal || "-")}</p>
-    </div>
-  `;
-}
 
 async function buildAttachments(payload: PayloadType): Promise<GraphFileAttachment[]> {
   const nulos = payload.nulos || [];
@@ -254,11 +136,13 @@ async function buildAttachments(payload: PayloadType): Promise<GraphFileAttachme
       const items: Promise<GraphFileAttachment | null>[] = [
         buildGraphAttachmentFromPrivateBlob(
           nulo.fotoPedidoOriginalUrl,
-          `nulo-${index + 1}-pedido-original.jpg`
+          `nulo-${index + 1}-pedido-original.jpg`,
+          contentIdFor(index, "pedido-original")
         ),
         buildGraphAttachmentFromPrivateBlob(
           nulo.fotoFacturaRectificativaUrl,
-          `nulo-${index + 1}-factura-rectificativa.jpg`
+          `nulo-${index + 1}-factura-rectificativa.jpg`,
+          contentIdFor(index, "factura-rectificativa")
         ),
       ];
 
@@ -266,7 +150,8 @@ async function buildAttachments(payload: PayloadType): Promise<GraphFileAttachme
         items.push(
           buildGraphAttachmentFromPrivateBlob(
             nulo.fotoNuevoPedidoUrl,
-            `nulo-${index + 1}-nuevo-pedido.jpg`
+            `nulo-${index + 1}-nuevo-pedido.jpg`,
+            contentIdFor(index, "nuevo-pedido")
           )
         );
       }
@@ -298,7 +183,7 @@ async function sendMailWithGraph(payload: PayloadType) {
 
   const mailPayload = {
     message: {
-      subject: `Formulario Administrativo - ${payload.fecha || "sin fecha"} - ${payload.encargado || "sin encargado"}`,
+      subject: buildSubject(payload),
       body: {
         contentType: "HTML",
         content: html,
