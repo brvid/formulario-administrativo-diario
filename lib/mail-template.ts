@@ -390,20 +390,15 @@ function row(label: string, value: string, opts?: { tone?: string; strong?: bool
 
 function section(title: string, inner: string, badge?: string) {
   return `
-    <tr><td style="padding:0 0 18px 0;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
-             class="m-card" bgcolor="${C.card}" style="background-color:${C.card};border:1px solid ${C.ruleStrong};border-radius:6px;">
-        <tr><td style="padding:16px 16px 14px 16px;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-            <tr>
-              <td style="font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:${C.accent};font-weight:700;">${title}</td>
-              ${badge ? `<td align="right">${badge}</td>` : ""}
-            </tr>
-          </table>
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:8px;">
-            ${inner}
-          </table>
-        </td></tr>
+    <tr><td style="padding:0 0 28px 0;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding:0 0 7px 0;border-bottom:1px solid ${C.accent};font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:${C.accent};font-weight:700;">${title}</td>
+          ${badge ? `<td align="right" style="padding:0 0 7px 0;border-bottom:1px solid ${C.accent};">${badge}</td>` : ""}
+        </tr>
+      </table>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        ${inner}
       </table>
     </td></tr>`;
 }
@@ -563,8 +558,6 @@ export function buildHtml(payload: PayloadType) {
      inyecta al aplicar su modo oscuro— vuelven a fijar los colores por si
      acaso decide tocarlos igualmente. */
   [data-ogsc] .m-ground, [data-ogsb] .m-ground { background-color: ${C.ground} !important; }
-  [data-ogsc] .m-card,   [data-ogsb] .m-card   { background-color: ${C.card} !important; }
-  [data-ogsc] .m-soft,   [data-ogsb] .m-soft   { background-color: ${C.soft} !important; }
   [data-ogsc] .m-band,   [data-ogsb] .m-band   { background-color: ${bandColor} !important; }
   [data-ogsc] .m-ink    { color: ${C.ink} !important; }
   [data-ogsc] .m-muted  { color: ${C.muted} !important; }
@@ -585,7 +578,7 @@ export function buildHtml(payload: PayloadType) {
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:${C.ink};">
 
   <!-- Banda de estado -->
-  <tr><td class="m-band" bgcolor="${bandColor}" style="background-color:${bandColor};color:#FFFFFF;border-radius:6px 6px 0 0;padding:18px 18px 16px 18px;">
+  <tr><td class="m-band" bgcolor="${bandColor}" style="background-color:${bandColor};color:#FFFFFF;border-radius:6px;padding:18px 18px 16px 18px;">
     <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.2em;opacity:0.75;margin-bottom:6px;">${escapeHtml(formatFecha(payload.fecha))} · ${escapeHtml(payload.encargado || "sin encargado")}</div>
     <div style="font-size:19px;font-weight:700;letter-spacing:-0.02em;line-height:1.25;">${escapeHtml(bandHeadline)}</div>
     <div style="font-size:12px;opacity:0.88;margin-top:5px;">${escapeHtml(bandSub)}</div>
@@ -593,7 +586,7 @@ export function buildHtml(payload: PayloadType) {
 
   ${
     deviations.length
-      ? `<tr><td class="m-card" bgcolor="${C.card}" style="background-color:${C.card};border:1px solid ${C.ruleStrong};border-top:0;">
+      ? `<tr><td style="padding-top:2px;">
            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${deviationRows}</table>
          </td></tr>`
       : ""
@@ -601,13 +594,13 @@ export function buildHtml(payload: PayloadType) {
 
   ${
     okRows
-      ? `<tr><td class="m-card" bgcolor="${C.card}" style="background-color:${C.card};border:1px solid ${C.ruleStrong};border-top:0;">
+      ? `<tr><td>
            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${okRows}</table>
          </td></tr>`
       : ""
   }
 
-  <tr><td class="m-soft" bgcolor="${C.soft}" style="background-color:${C.soft};border:1px solid ${C.ruleStrong};border-top:0;border-radius:0 0 6px 6px;padding:12px 14px;text-align:center;font-size:11px;color:${C.faint};letter-spacing:0.05em;">
+  <tr><td style="padding:16px 4px 0 4px;text-align:center;font-size:11px;color:${C.faint};letter-spacing:0.05em;">
     Detalle completo del parte más abajo
   </td></tr>
 
