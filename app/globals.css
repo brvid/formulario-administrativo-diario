@@ -114,6 +114,9 @@ input,
 select,
 textarea {
   width: 100%;
+  /* Sin esto, un campo con contenido ancho puede estirar su columna en grid */
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--line);
   background: var(--panel);
   border-radius: var(--r-sm);
@@ -200,9 +203,45 @@ select {
   background-repeat: no-repeat;
 }
 
+/* --------------------------------------------------------------------------
+   Fecha y hora en iOS
+   WebKit no aplica width:100% a estos campos: los dimensiona a su contenido,
+   así que salían más estrechos que los de texto, y además centra el valor.
+   Con appearance:none pasan a comportarse como cualquier otro campo.
+   -------------------------------------------------------------------------- */
+
 input[type="date"],
 input[type="time"] {
   min-height: 50px;
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  /* iOS ignora el width si el campo conserva su tamaño intrínseco */
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+/* El valor va alineado a la izquierda, como el resto de campos */
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value {
+  text-align: left;
+  margin: 0;
+  min-height: 1.35em;
+  line-height: 1.35;
+}
+
+input[type="date"]::-webkit-datetime-edit,
+input[type="time"]::-webkit-datetime-edit {
+  padding: 0;
+  line-height: 1.35;
+}
+
+/* Sin esto, un campo de fecha vacío colapsa en iOS */
+input[type="date"]:empty,
+input[type="time"]:empty {
+  width: 100%;
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator,
@@ -404,6 +443,8 @@ button,
 .field {
   display: flex;
   flex-direction: column;
+  /* En grid los items no bajan de su ancho de contenido si no se fuerza */
+  min-width: 0;
 }
 
 /* Entrada escalonada del paso de bienvenida */
@@ -583,12 +624,13 @@ button,
 
 .card-grid {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 22px;
 }
 
 @media (min-width: 768px) {
   .card-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 24px;
   }
 }

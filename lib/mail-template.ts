@@ -107,21 +107,27 @@ export function photosOfNulo(nulo: NuloPayload, index: number) {
 }
 
 const C = {
-  ground: "#F1F1EF",
-  card: "#FFFFFF",
-  soft: "#F7F7F5",
-  ink: "#1A1A1A",
-  muted: "#6C6C68",
-  faint: "#8A8A85",
-  rule: "#E2E2DE",
-  crit: "#A32A22",
-  critBand: "#8A2C22",
-  critSoft: "#F7E4E2",
-  warn: "#B98218",
-  warnBand: "#8A5A08",
-  warnSoft: "#FBF1DC",
-  ok: "#146B3A",
-  okSoft: "#E2F0E8",
+  // Paleta oscura, la misma dirección "B · Cierre" que la app.
+  // El correo se lee de noche y en clientes con modo oscuro; si ya viene
+  // oscuro, Outlook no tiene nada que invertir y deja de salir gris y negro
+  // a trozos.
+  ground: "#0C0D10",
+  card: "#15171C",
+  soft: "#1B1E25",
+  ink: "#F2F3F5",
+  muted: "#A2A9B6",
+  faint: "#79808E",
+  rule: "#282C35",
+  ruleSoft: "#20242C",
+  crit: "#FF7078",
+  critBand: "#7A2028",
+  critSoft: "#2A1416",
+  warn: "#E8B85C",
+  warnBand: "#5E4715",
+  warnSoft: "#251E0F",
+  ok: "#4ED89A",
+  okBand: "#14503A",
+  okSoft: "#0F2620",
 };
 
 type Deviation = {
@@ -383,7 +389,7 @@ function section(title: string, inner: string, badge?: string) {
   return `
     <tr><td style="padding:0 0 10px 0;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
-             style="background:${C.card};border:1px solid ${C.rule};border-radius:6px;">
+             class="m-card" bgcolor="${C.card}" style="background-color:${C.card};border:1px solid ${C.rule};border-radius:6px;">
         <tr><td style="padding:14px 16px 12px 16px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
             <tr>
@@ -419,7 +425,7 @@ export function buildHtml(payload: PayloadType) {
   const crit = deviations.filter((d) => d.level === "crit").length;
   const warn = deviations.length - crit;
 
-  const bandColor = crit > 0 ? C.critBand : warn > 0 ? C.warnBand : "#1E5B3C";
+  const bandColor = crit > 0 ? C.critBand : warn > 0 ? C.warnBand : C.okBand;
   const bandHeadline =
     crit > 0
       ? `${crit} ${crit === 1 ? "punto requiere" : "puntos requieren"} revisión`
@@ -448,9 +454,9 @@ export function buildHtml(payload: PayloadType) {
       return `
         <tr>
           <td width="3" style="background:${bar};width:3px;font-size:0;line-height:0;">&nbsp;</td>
-          <td style="padding:11px 14px;border-bottom:1px solid #EDEDEA;">
-            <div style="font-size:13px;font-weight:700;color:${C.ink};margin-bottom:3px;">${escapeHtml(d.title)}</div>
-            <div style="font-size:12px;color:${C.muted};line-height:1.5;">${escapeHtml(d.detail)}</div>
+          <td style="padding:11px 14px;border-bottom:1px solid ${C.ruleSoft};">
+            <div class="m-ink" style="font-size:13px;font-weight:700;color:${C.ink};margin-bottom:3px;">${escapeHtml(d.title)}</div>
+            <div class="m-muted" style="font-size:12px;color:${C.muted};line-height:1.5;">${escapeHtml(d.detail)}</div>
           </td>
         </tr>`;
     })
@@ -460,8 +466,8 @@ export function buildHtml(payload: PayloadType) {
     .map(
       (line) => `
         <tr>
-          <td style="padding:9px 14px;border-bottom:1px solid #EDEDEA;font-size:12px;color:${C.muted};">${escapeHtml(line)}</td>
-          <td align="right" style="padding:9px 14px;border-bottom:1px solid #EDEDEA;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:${C.ok};white-space:nowrap;">Correcto</td>
+          <td style="padding:9px 14px;border-bottom:1px solid ${C.ruleSoft};font-size:12px;color:${C.muted};">${escapeHtml(line)}</td>
+          <td align="right" style="padding:9px 14px;border-bottom:1px solid ${C.ruleSoft};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:${C.ok};white-space:nowrap;">Correcto</td>
         </tr>`
     )
     .join("");
@@ -483,7 +489,7 @@ export function buildHtml(payload: PayloadType) {
                     ${fotos
                       .map(
                         (foto) => `
-                      <td width="${Math.floor(100 / fotos.length)}%" valign="top" style="padding-right:6px;">
+                      <td class="m-photo" width="${Math.floor(100 / fotos.length)}%" valign="top" style="padding-right:6px;">
                         <img src="cid:${foto.cid}" alt="${escapeHtml(foto.label)}" width="170"
                              style="display:block;width:100%;max-width:170px;height:auto;border:1px solid ${C.rule};border-radius:4px;">
                         <div style="font-size:10px;color:${C.faint};padding-top:5px;letter-spacing:0.04em;">${escapeHtml(foto.label)}</div>
@@ -542,20 +548,41 @@ export function buildHtml(payload: PayloadType) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="light">
-<meta name="supported-color-schemes" content="light">
+<meta name="color-scheme" content="dark">
+<meta name="supported-color-schemes" content="dark">
 <title>Parte administrativo diario</title>
+<style>
+  :root { color-scheme: dark; supported-color-schemes: dark; }
+
+  /* Outlook (nuevo y web) invierte los correos claros en modo oscuro, y lo
+     hace a trozos: unas tarjetas se quedaban grises y otras negras. Al venir
+     ya oscuro no hay nada que invertir, y estos selectores —los que Outlook
+     inyecta al aplicar su modo oscuro— vuelven a fijar los colores por si
+     acaso decide tocarlos igualmente. */
+  [data-ogsc] .m-ground, [data-ogsb] .m-ground { background-color: ${C.ground} !important; }
+  [data-ogsc] .m-card,   [data-ogsb] .m-card   { background-color: ${C.card} !important; }
+  [data-ogsc] .m-soft,   [data-ogsb] .m-soft   { background-color: ${C.soft} !important; }
+  [data-ogsc] .m-band,   [data-ogsb] .m-band   { background-color: ${bandColor} !important; }
+  [data-ogsc] .m-ink    { color: ${C.ink} !important; }
+  [data-ogsc] .m-muted  { color: ${C.muted} !important; }
+  [data-ogsc] .m-faint  { color: ${C.faint} !important; }
+  [data-ogsc] .m-onband { color: #FFFFFF !important; }
+
+  @media (max-width: 620px) {
+    .m-photo { width: 100% !important; display: block !important; padding: 0 0 10px 0 !important; }
+  }
+</style>
 </head>
-<body style="margin:0;padding:0;background:${C.ground};">
+<body class="m-ground" bgcolor="${C.ground}" style="margin:0;padding:0;background-color:${C.ground};">
 <div style="display:none;font-size:1px;color:${C.ground};line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">${escapeHtml(preheader)}</div>
 
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.ground};padding:20px 12px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="m-ground" bgcolor="${C.ground}" style="background-color:${C.ground};padding:20px 12px;">
 <tr><td align="center">
 
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:${C.ink};">
 
   <!-- Banda de estado -->
-  <tr><td style="background:${bandColor};color:#FFFFFF;border-radius:6px 6px 0 0;padding:18px 18px 16px 18px;">
+  <tr><td class="m-band" bgcolor="${bandColor}" style="background-color:${bandColor};color:#FFFFFF;border-radius:6px 6px 0 0;padding:18px 18px 16px 18px;">
     <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.2em;opacity:0.75;margin-bottom:6px;">${escapeHtml(formatFecha(payload.fecha))} · ${escapeHtml(payload.encargado || "sin encargado")}</div>
     <div style="font-size:19px;font-weight:700;letter-spacing:-0.02em;line-height:1.25;">${escapeHtml(bandHeadline)}</div>
     <div style="font-size:12px;opacity:0.88;margin-top:5px;">${escapeHtml(bandSub)}</div>
@@ -563,7 +590,7 @@ export function buildHtml(payload: PayloadType) {
 
   ${
     deviations.length
-      ? `<tr><td style="background:${C.card};border:1px solid ${C.rule};border-top:0;">
+      ? `<tr><td class="m-card" bgcolor="${C.card}" style="background-color:${C.card};border:1px solid ${C.rule};border-top:0;">
            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${deviationRows}</table>
          </td></tr>`
       : ""
@@ -571,13 +598,13 @@ export function buildHtml(payload: PayloadType) {
 
   ${
     okRows
-      ? `<tr><td style="background:${C.card};border:1px solid ${C.rule};border-top:0;">
+      ? `<tr><td class="m-card" bgcolor="${C.card}" style="background-color:${C.card};border:1px solid ${C.rule};border-top:0;">
            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${okRows}</table>
          </td></tr>`
       : ""
   }
 
-  <tr><td style="background:${C.soft};border:1px solid ${C.rule};border-top:0;border-radius:0 0 6px 6px;padding:12px 14px;text-align:center;font-size:11px;color:${C.faint};letter-spacing:0.05em;">
+  <tr><td class="m-soft" bgcolor="${C.soft}" style="background-color:${C.soft};border:1px solid ${C.rule};border-top:0;border-radius:0 0 6px 6px;padding:12px 14px;text-align:center;font-size:11px;color:${C.faint};letter-spacing:0.05em;">
     Detalle completo del parte más abajo
   </td></tr>
 
