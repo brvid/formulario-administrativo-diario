@@ -106,6 +106,18 @@ export function photosOfNulo(nulo: NuloPayload, index: number) {
     .map((photo) => ({ ...photo, cid: contentIdFor(index, photo.kind) }));
 }
 
+/**
+ * Un píxel del color de fondo, en PNG (69 bytes).
+ *
+ * El modo oscuro de Outlook repinta el fondo del mensaje con su propio gris
+ * pase lo que pase con `bgcolor` y `background-color` — da igual que se le
+ * pase claro u oscuro. Lo que no toca son las imágenes. Repitiendo este píxel
+ * como `background-image`, el color queda fijado: la imagen se pinta por
+ * encima del fondo que Outlook haya decidido.
+ */
+const GROUND_TILE =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mPg4RUAAABSACpL8zo8AAAAAElFTkSuQmCC";
+
 const C = {
   // Paleta oscura, la misma dirección "B · Cierre" que la app.
   // El correo se lee de noche y en clientes con modo oscuro; si ya viene
@@ -569,11 +581,11 @@ export function buildHtml(payload: PayloadType) {
   }
 </style>
 </head>
-<body class="m-ground" bgcolor="${C.ground}" style="margin:0;padding:0;background-color:${C.ground};">
+<body class="m-ground" bgcolor="${C.ground}" style="margin:0;padding:0;background-color:${C.ground};background-image:url('${GROUND_TILE}');background-repeat:repeat;">
 <div style="display:none;font-size:1px;color:${C.ground};line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">${escapeHtml(preheader)}</div>
 
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="m-ground" bgcolor="${C.ground}" style="background-color:${C.ground};padding:20px 12px;">
-<tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="m-ground" bgcolor="${C.ground}" background="${GROUND_TILE}" style="background-color:${C.ground};background-image:url('${GROUND_TILE}');background-repeat:repeat;padding:20px 12px;">
+<tr><td align="center" background="${GROUND_TILE}" bgcolor="${C.ground}" style="background-color:${C.ground};background-image:url('${GROUND_TILE}');background-repeat:repeat;">
 
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:${C.ink};">
 

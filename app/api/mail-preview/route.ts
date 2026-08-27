@@ -19,10 +19,11 @@ export const runtime = "nodejs";
  * correo a uno mismo cada vez.
  */
 function simulateOutlookDark(html: string) {
+  // El gris es el que se ve en las capturas reales de Outlook para iOS.
   const surfaces: Record<string, string> = {
-    "#0C0D10": "#1B1B1B", // fondo de la ventana
-    "#15171C": "#4A4E58", // tarjetas
-    "#1B1E25": "#3F434C", // franjas suaves
+    "#0C0D10": "#4A4E58", // fondo del mensaje
+    "#15171C": "#4A4E58", // superficies
+    "#1B1E25": "#3F434C",
     "#4A515E": "#5A606B", // reglas
   };
 
