@@ -119,6 +119,9 @@ const C = {
   faint: "#79808E",
   rule: "#282C35",
   ruleSoft: "#20242C",
+  // Se ve tanto sobre #15171C como sobre el gris que impone Outlook
+  ruleStrong: "#4A515E",
+  accent: "#F5A524",
   crit: "#FF7078",
   critBand: "#7A2028",
   critSoft: "#2A1416",
@@ -380,20 +383,20 @@ function row(label: string, value: string, opts?: { tone?: string; strong?: bool
 
   return `
     <tr>
-      <td style="padding:6px 0;border-bottom:1px solid ${C.rule};font-size:13px;color:${C.muted};">${label}</td>
-      <td align="right" style="padding:6px 0;border-bottom:1px solid ${C.rule};font-size:13px;font-weight:${weight};color:${tone};white-space:nowrap;">${value}</td>
+      <td style="padding:9px 0;border-bottom:1px solid ${C.ruleStrong};font-size:13px;color:${C.muted};">${label}</td>
+      <td align="right" style="padding:9px 0;border-bottom:1px solid ${C.ruleStrong};font-size:13px;font-weight:${weight};color:${tone};white-space:nowrap;">${value}</td>
     </tr>`;
 }
 
 function section(title: string, inner: string, badge?: string) {
   return `
-    <tr><td style="padding:0 0 10px 0;">
+    <tr><td style="padding:0 0 18px 0;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
-             class="m-card" bgcolor="${C.card}" style="background-color:${C.card};border:1px solid ${C.rule};border-radius:6px;">
-        <tr><td style="padding:14px 16px 12px 16px;">
+             class="m-card" bgcolor="${C.card}" style="background-color:${C.card};border:1px solid ${C.ruleStrong};border-radius:6px;">
+        <tr><td style="padding:16px 16px 14px 16px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
             <tr>
-              <td style="font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:${C.faint};font-weight:700;">${title}</td>
+              <td style="font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:${C.accent};font-weight:700;">${title}</td>
               ${badge ? `<td align="right">${badge}</td>` : ""}
             </tr>
           </table>
@@ -412,7 +415,7 @@ function badge(text: string, tone: "ok" | "bad" | "warn") {
     warn: { bg: C.warnSoft, fg: C.warn },
   } as const;
 
-  return `<span style="display:inline-block;background:${map[tone].bg};color:${map[tone].fg};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:3px 7px;border-radius:3px;">${escapeHtml(text)}</span>`;
+  return `<span style="display:inline-block;background:${map[tone].bg};color:${map[tone].fg};border:1px solid ${map[tone].fg};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:3px 7px;border-radius:3px;">${escapeHtml(text)}</span>`;
 }
 
 export function buildHtml(payload: PayloadType) {
@@ -454,7 +457,7 @@ export function buildHtml(payload: PayloadType) {
       return `
         <tr>
           <td width="3" style="background:${bar};width:3px;font-size:0;line-height:0;">&nbsp;</td>
-          <td style="padding:11px 14px;border-bottom:1px solid ${C.ruleSoft};">
+          <td style="padding:11px 14px;border-bottom:1px solid ${C.ruleStrong};">
             <div class="m-ink" style="font-size:13px;font-weight:700;color:${C.ink};margin-bottom:3px;">${escapeHtml(d.title)}</div>
             <div class="m-muted" style="font-size:12px;color:${C.muted};line-height:1.5;">${escapeHtml(d.detail)}</div>
           </td>
@@ -466,8 +469,8 @@ export function buildHtml(payload: PayloadType) {
     .map(
       (line) => `
         <tr>
-          <td style="padding:9px 14px;border-bottom:1px solid ${C.ruleSoft};font-size:12px;color:${C.muted};">${escapeHtml(line)}</td>
-          <td align="right" style="padding:9px 14px;border-bottom:1px solid ${C.ruleSoft};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:${C.ok};white-space:nowrap;">Correcto</td>
+          <td style="padding:9px 14px;border-bottom:1px solid ${C.ruleStrong};font-size:12px;color:${C.muted};">${escapeHtml(line)}</td>
+          <td align="right" style="padding:9px 14px;border-bottom:1px solid ${C.ruleStrong};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:${C.ok};white-space:nowrap;">Correcto</td>
         </tr>`
     )
     .join("");
@@ -590,7 +593,7 @@ export function buildHtml(payload: PayloadType) {
 
   ${
     deviations.length
-      ? `<tr><td class="m-card" bgcolor="${C.card}" style="background-color:${C.card};border:1px solid ${C.rule};border-top:0;">
+      ? `<tr><td class="m-card" bgcolor="${C.card}" style="background-color:${C.card};border:1px solid ${C.ruleStrong};border-top:0;">
            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${deviationRows}</table>
          </td></tr>`
       : ""
@@ -598,13 +601,13 @@ export function buildHtml(payload: PayloadType) {
 
   ${
     okRows
-      ? `<tr><td class="m-card" bgcolor="${C.card}" style="background-color:${C.card};border:1px solid ${C.rule};border-top:0;">
+      ? `<tr><td class="m-card" bgcolor="${C.card}" style="background-color:${C.card};border:1px solid ${C.ruleStrong};border-top:0;">
            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${okRows}</table>
          </td></tr>`
       : ""
   }
 
-  <tr><td class="m-soft" bgcolor="${C.soft}" style="background-color:${C.soft};border:1px solid ${C.rule};border-top:0;border-radius:0 0 6px 6px;padding:12px 14px;text-align:center;font-size:11px;color:${C.faint};letter-spacing:0.05em;">
+  <tr><td class="m-soft" bgcolor="${C.soft}" style="background-color:${C.soft};border:1px solid ${C.ruleStrong};border-top:0;border-radius:0 0 6px 6px;padding:12px 14px;text-align:center;font-size:11px;color:${C.faint};letter-spacing:0.05em;">
     Detalle completo del parte más abajo
   </td></tr>
 

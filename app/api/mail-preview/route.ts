@@ -5,10 +5,42 @@ export const runtime = "nodejs";
 
 /**
  * Previsualización del correo en el navegador, sin enviar nada.
- *   /api/mail-preview          → un día con desviaciones
- *   /api/mail-preview?ok=1     → un día que cuadra
+ *   /api/mail-preview            → un día con desviaciones
+ *   /api/mail-preview?ok=1       → un día que cuadra
+ *   /api/mail-preview?outlook=1  → cómo lo repinta Outlook en modo oscuro
  * Sólo disponible fuera de producción.
  */
+
+/**
+ * Outlook (móvil y nuevo) no respeta los fondos neutros: conserva los colores
+ * saturados —la banda de estado, los verdes y rojos— y sustituye las
+ * superficies grises y negras por las suyas. Esto reproduce ese repintado
+ * para poder comprobar que la jerarquía aguanta sin tener que enviarse un
+ * correo a uno mismo cada vez.
+ */
+function simulateOutlookDark(html: string) {
+  const surfaces: Record<string, string> = {
+    "#0C0D10": "#1B1B1B", // fondo de la ventana
+    "#15171C": "#4A4E58", // tarjetas
+    "#1B1E25": "#3F434C", // franjas suaves
+    "#4A515E": "#5A606B", // reglas
+  };
+
+  let out = html;
+
+  for (const [mine, theirs] of Object.entries(surfaces)) {
+    // Sólo se repintan fondos y bordes; el color de texto Outlook lo respeta
+    out = out
+      .split(`background-color:${mine}`)
+      .join(`background-color:${theirs}`)
+      .split(`bgcolor="${mine}"`)
+      .join(`bgcolor="${theirs}"`)
+      .split(`solid ${mine}`)
+      .join(`solid ${theirs}`);
+  }
+
+  return out;
+}
 
 const conDesviaciones: PayloadType = {
   fecha: "2026-08-27",
@@ -108,8 +140,9 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const payload = searchParams.get("ok") ? diaCorrecto : conDesviaciones;
+  const asOutlook = Boolean(searchParams.get("outlook"));
 
-  const html = buildHtml(payload);
+  const html = asOutlook ? simulateOutlookDark(buildHtml(payload)) : buildHtml(payload);
   const subject = buildSubject(payload);
 
   // La barra superior imita la bandeja de entrada para poder juzgar el asunto
@@ -120,6 +153,11 @@ export async function GET(request: Request) {
   <div style="font-weight:700;color:#111;">${subject
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")}</div>
+  ${
+    asOutlook
+      ? '<div style="margin-top:6px;font-size:11px;color:#8a5a08;">Simulando el repintado de Outlook en modo oscuro</div>'
+      : ""
+  }
 </div>`;
 
   // El navegador no resuelve `cid:`, que es como viajan las fotos dentro del
