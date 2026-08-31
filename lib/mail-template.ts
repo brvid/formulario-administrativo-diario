@@ -19,6 +19,10 @@ export type ComidaPayload = {
   hora?: string;
 };
 
+export type FichajePayload = {
+  fotoUrl?: string;
+};
+
 export type PayloadType = {
   fecha?: string;
   encargado?: string;
@@ -38,6 +42,10 @@ export type PayloadType = {
   billetesLoomis?: number;
   monedasLoomis?: number;
   observacionesCaja?: string;
+  tieneFichajes?: "si" | "no" | "";
+  numeroFotosFichajes?: number;
+  fichajes?: FichajePayload[];
+  motivoSinFichajes?: string;
   comentarioFinal?: string;
   quebranto?: number;
 };
@@ -76,6 +84,23 @@ export type NuloPhotoKind =
  */
 export function contentIdFor(index: number, kind: NuloPhotoKind) {
   return `nulo-${index + 1}-${kind}`;
+}
+
+/** Identificador de cada foto del registro de jornada. */
+export function fichajeContentId(index: number) {
+  return `fichaje-${index + 1}`;
+}
+
+/** Las fotos de fichajes que realmente se adjuntan. */
+export function fichajePhotos(payload: PayloadType) {
+  if (payload.tieneFichajes !== "si") return [];
+
+  return (payload.fichajes || [])
+    .filter((fichaje) => Boolean(fichaje.fotoUrl))
+    .map((_, index) => ({
+      label: `Fichajes ${index + 1}`,
+      cid: fichajeContentId(index),
+    }));
 }
 
 /** Las fotos que realmente se adjuntan de un nulo, en orden. */
@@ -314,6 +339,16 @@ function buildDeviations(payload: PayloadType): Deviation[] {
     }
   }
 
+  if (payload.tieneFichajes === "no") {
+    out.push({
+      level: "crit",
+      title: "Sin foto de los fichajes",
+      detail:
+        payload.motivoSinFichajes ||
+        "No se ha indicado motivo. El registro de jornada es obligatorio.",
+    });
+  }
+
   if (payload.incidencia === "si") {
     out.push({
       level: "warn",
@@ -359,6 +394,13 @@ function buildOkLines(payload: PayloadType): string[] {
 
   if (Math.abs(Number(payload.quebranto ?? 0)) < 0.005) {
     out.push("Caja cuadrada");
+  }
+
+  const fotosFichajes = (payload.fichajes || []).filter((f) => f.fotoUrl).length;
+  if (payload.tieneFichajes === "si" && fotosFichajes > 0) {
+    out.push(
+      `Fichajes adjuntos · ${fotosFichajes} ${fotosFichajes === 1 ? "foto" : "fotos"}`
+    );
   }
 
   return out;
@@ -539,6 +581,45 @@ export function buildHtml(payload: PayloadType) {
         badge("Sin nulos", "ok")
       );
 
+  const fotosFichajes = fichajePhotos(payload);
+
+  const fichajesStrip = fotosFichajes.length
+    ? `
+      <tr><td colspan="2" style="padding-top:12px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            ${fotosFichajes
+              .map(
+                (foto) => `
+            <td class="m-photo" width="${Math.floor(100 / fotosFichajes.length)}%" valign="top" style="padding-right:6px;">
+              <img src="cid:${foto.cid}" alt="${escapeHtml(foto.label)}" width="170"
+                   style="display:block;width:100%;max-width:170px;height:auto;border:1px solid ${C.ruleStrong};border-radius:4px;">
+              <div style="font-size:10px;color:${C.faint};padding-top:5px;letter-spacing:0.04em;">${escapeHtml(foto.label)}</div>
+            </td>`
+              )
+              .join("")}
+          </tr>
+        </table>
+      </td></tr>`
+    : "";
+
+  const fichajesDetail = section(
+    "Fichajes",
+    [
+      row("Foto del registro de jornada", formatSiNo(payload.tieneFichajes), {
+        tone: payload.tieneFichajes === "si" ? C.ok : C.crit,
+      }),
+      payload.tieneFichajes === "si"
+        ? row("Fotos adjuntas", String(fotosFichajes.length))
+        : row("Motivo", escapeHtml(payload.motivoSinFichajes || "—")),
+      fichajesStrip,
+    ].join(""),
+    badge(
+      payload.tieneFichajes === "si" ? "Adjuntos" : "Sin registro",
+      payload.tieneFichajes === "si" ? "ok" : "bad"
+    )
+  );
+
   const comidasDetail = comidas.length
     ? section(
         "Personas registradas en comida",
@@ -671,6 +752,8 @@ export function buildHtml(payload: PayloadType) {
       row("Observaciones", escapeHtml(payload.observacionesCaja || "—")),
     ].join("")
   )}
+
+  ${fichajesDetail}
 
   ${section("Cierre", row("Comentario final", escapeHtml(payload.comentarioFinal || "—")))}
 

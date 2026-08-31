@@ -13,6 +13,7 @@ const steps = [
   "Nulos",
   "Comida personal",
   "Caja",
+  "Fichajes",
   "Cierre",
 ];
 
@@ -76,6 +77,10 @@ export default function MultiStepForm() {
       billetesLoomis: 0,
       monedasLoomis: 0,
       observacionesCaja: "",
+      tieneFichajes: "",
+      numeroFotosFichajes: 1,
+      fichajes: [],
+      motivoSinFichajes: "",
       comentarioFinal: "",
     } as FormDataType,
     mode: "onSubmit",
@@ -86,6 +91,8 @@ export default function MultiStepForm() {
   const incidencia = watch("incidencia");
   const haHabidoNulos = watch("haHabidoNulos");
   const haHabidoComida = watch("haHabidoComida");
+  const tieneFichajes = watch("tieneFichajes");
+  const numeroFotosFichajes = Number(watch("numeroFotosFichajes") || 0);
 
   const efectivoStoreace = Number((watch as any)("efectivoStoreace") || 0);
   const billetesLoomis = Number((watch as any)("billetesLoomis") || 0);
@@ -147,6 +154,10 @@ export default function MultiStepForm() {
     }
 
     if (step === 3 && !haHabidoComida) {
+      valid = false;
+    }
+
+    if (step === 5 && !tieneFichajes) {
       valid = false;
     }
 
@@ -261,6 +272,76 @@ export default function MultiStepForm() {
     }
   };
 
+  const getFichajeUploadKey = (index: number) => `fichajes.${index}.foto`;
+
+  const handleFichajeFileSelected = async (
+    index: number,
+    file: File | null
+  ) => {
+    const key = getFichajeUploadKey(index);
+
+    setSubmitMessage(null);
+
+    if (!file) {
+      setUploadedFiles((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      (setValue as any)(`fichajes.${index}.foto`, null);
+      return;
+    }
+
+    (setValue as any)(`fichajes.${index}.foto`, file);
+
+    setUploadedFiles((prev) => ({
+      ...prev,
+      [key]: {
+        status: "uploading",
+        fileName: file.name,
+      },
+    }));
+
+    try {
+      const url = await uploadFileToBlob(
+        file,
+        `formularios/fichajes/${index + 1}`
+      );
+
+      setUploadedFiles((prev) => ({
+        ...prev,
+        [key]: {
+          status: "uploaded",
+          fileName: file.name,
+          url,
+        },
+      }));
+    } catch (error) {
+      setUploadedFiles((prev) => ({
+        ...prev,
+        [key]: {
+          status: "error",
+          fileName: file.name,
+          error:
+            error instanceof Error
+              ? error.message
+              : "No se pudo subir la imagen.",
+        },
+      }));
+    }
+  };
+
+  const handleTieneFichajesChange = (value: "si" | "no") => {
+    setValue("tieneFichajes", value, {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+
+    if (value === "si") {
+      (setValue as any)("motivoSinFichajes", "");
+    }
+  };
+
   const onInvalid = () => {
     setSubmitMessage({
       type: "error",
@@ -329,10 +410,27 @@ export default function MultiStepForm() {
         };
       });
 
+      const fichajesConUrls = (data.fichajes || [])
+        .slice(0, Number(data.numeroFotosFichajes) || 0)
+        .map((fichaje, index) => {
+          const fotoUrl =
+            uploadedFiles[getFichajeUploadKey(index)]?.url || "";
+
+          if (fichaje?.foto && !fotoUrl) {
+            throw new Error(
+              `La foto ${index + 1} de los fichajes no se ha subido correctamente.`
+            );
+          }
+
+          return { fotoUrl };
+        })
+        .filter((fichaje) => Boolean(fichaje.fotoUrl));
+
       const payload = {
         ...data,
         quebranto,
         nulos: nulosConUrls,
+        fichajes: data.tieneFichajes === "si" ? fichajesConUrls : [],
       };
 
       const response = await fetch("/api/send-form", {
@@ -943,7 +1041,99 @@ export default function MultiStepForm() {
                 </StepShell>
               )}
 
-              {step === 5 && submitMessage?.type === "success" && (
+              {step === 5 && (
+                <StepShell
+                  eyebrow="Fichajes"
+                  title="El registro de jornada."
+                  description="Adjunta la foto de los fichajes del día. Si hacen falta varias capturas para que salga el turno entero, indica cuántas."
+                >
+                  <Field>
+                    <label>¿Tienes la foto de los fichajes?</label>
+                    <ChoiceChips
+                      value={tieneFichajes}
+                      onChange={(value) =>
+                        handleTieneFichajesChange(value as "si" | "no")
+                      }
+                      options={[
+                        { label: "Sí", value: "si" },
+                        { label: "No", value: "no" },
+                      ]}
+                    />
+                  </Field>
+
+                  {tieneFichajes === "si" && (
+                    <>
+                      <Field>
+                        <label>Número de fotos</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={5}
+                          {...register("numeroFotosFichajes", {
+                            valueAsNumber: true,
+                          })}
+                        />
+                      </Field>
+
+                      {Array.from({ length: numeroFotosFichajes || 0 }).map(
+                        (_, index) => {
+                          const foto = (watch as any)(
+                            `fichajes.${index}.foto`
+                          ) as File | null | undefined;
+
+                          const uploadFichaje =
+                            uploadedFiles[getFichajeUploadKey(index)];
+
+                          return (
+                            <div
+                              key={index}
+                              className="card"
+                              style={{ "--i": Math.min(index, 5) } as never}
+                            >
+                              <div className="card-head">
+                                <h3 className="card-title">
+                                  Foto {index + 1}
+                                </h3>
+                                <span className="card-index">
+                                  {String(index + 1).padStart(2, "0")} /{" "}
+                                  {String(numeroFotosFichajes || 0).padStart(
+                                    2,
+                                    "0"
+                                  )}
+                                </span>
+                              </div>
+
+                              <Field>
+                                <label>Foto del registro de jornada</label>
+                                <FileUploadField
+                                  file={foto}
+                                  uploadState={uploadFichaje}
+                                  onChange={(file) =>
+                                    handleFichajeFileSelected(index, file)
+                                  }
+                                />
+                              </Field>
+                            </div>
+                          );
+                        }
+                      )}
+                    </>
+                  )}
+
+                  <Reveal open={tieneFichajes === "no"}>
+                    <Field>
+                      <label>Explica por qué no hay foto de los fichajes</label>
+                      <textarea
+                        rows={3}
+                        placeholder="Describe el motivo"
+                        {...register("motivoSinFichajes")}
+                      />
+                    </Field>
+                  </Reveal>
+                </StepShell>
+              )}
+
+              {step === 6 && submitMessage?.type === "success" && (
                 <div className="confirm">
                   <span className="confirm-mark">
                     <CheckIcon size={24} tone="var(--pos)" />
@@ -979,7 +1169,7 @@ export default function MultiStepForm() {
                 </div>
               )}
 
-              {step === 5 && submitMessage?.type !== "success" && (
+              {step === 6 && submitMessage?.type !== "success" && (
                 <StepShell
                   eyebrow="Cierre"
                   title="Último paso."
@@ -1021,7 +1211,7 @@ export default function MultiStepForm() {
             </motion.div>
           </AnimatePresence>
 
-          {step < 5 && submitMessage?.type === "error" && (
+          {step < 6 && submitMessage?.type === "error" && (
             <div className="mt-8 max-w-[820px]">
               <div className="notice" data-tone="error">
                 <span className="notice-icon">

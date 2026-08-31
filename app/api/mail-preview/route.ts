@@ -94,6 +94,10 @@ const conDesviaciones: PayloadType = {
   observacionesCaja: "Falta cambio en el cajón 2.",
   comentarioFinal: "Servicio tranquilo salvo la caída del TPV.",
   quebranto: -12.6,
+  tieneFichajes: "no",
+  numeroFotosFichajes: 0,
+  fichajes: [],
+  motivoSinFichajes: "El terminal de fichajes estuvo caído toda la tarde.",
 };
 
 const diaCorrecto: PayloadType = {
@@ -132,6 +136,13 @@ const diaCorrecto: PayloadType = {
   observacionesCaja: "",
   comentarioFinal: "Sin novedad.",
   quebranto: 0,
+  tieneFichajes: "si",
+  numeroFotosFichajes: 2,
+  fichajes: [
+    { fotoUrl: "https://ejemplo.blob.vercel-storage.com/f1.jpg" },
+    { fotoUrl: "https://ejemplo.blob.vercel-storage.com/f2.jpg" },
+  ],
+  motivoSinFichajes: "",
 };
 
 export async function GET(request: Request) {
@@ -178,7 +189,7 @@ export async function GET(request: Request) {
           <rect x="26" y="132" width="60" height="5" rx="2"/>
         </g>
         <text x="85" y="180" font-family="monospace" font-size="10"
-              fill="#9A9A95" text-anchor="middle">foto del nulo</text>
+              fill="#9A9A95" text-anchor="middle">foto</text>
       </svg>`
     );
 

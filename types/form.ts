@@ -18,6 +18,11 @@ export type ComidaItem = {
   hora: string;
 };
 
+/** Una foto del registro de jornada. Suelen hacer falta varias. */
+export type FichajeItem = {
+  foto: File | null;
+};
+
 export type FormDataType = {
   fecha: string;
   encargado: string;
@@ -40,6 +45,11 @@ export type FormDataType = {
   billetesLoomis: number;
   monedasLoomis: number;
   observacionesCaja: string;
+
+  tieneFichajes: "si" | "no" | "";
+  numeroFotosFichajes: number;
+  fichajes: FichajeItem[];
+  motivoSinFichajes: string;
 
   comentarioFinal: string;
 };

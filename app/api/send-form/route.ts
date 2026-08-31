@@ -4,6 +4,7 @@ import {
   buildHtml,
   buildSubject,
   contentIdFor,
+  fichajeContentId,
   type PayloadType,
 } from "@/lib/mail-template";
 
@@ -160,7 +161,24 @@ async function buildAttachments(payload: PayloadType): Promise<GraphFileAttachme
     })
   );
 
-  return attachments.filter(Boolean) as GraphFileAttachment[];
+  // Fotos del registro de jornada. Mismo criterio: van incrustadas junto a su
+  // sección y además adjuntas.
+  const fichajes =
+    payload.tieneFichajes === "si" ? payload.fichajes || [] : [];
+
+  const fichajeAttachments = await Promise.all(
+    fichajes.map((fichaje, index) =>
+      buildGraphAttachmentFromPrivateBlob(
+        fichaje.fotoUrl,
+        `fichajes-${index + 1}.jpg`,
+        fichajeContentId(index)
+      )
+    )
+  );
+
+  return [...attachments, ...fichajeAttachments].filter(
+    Boolean
+  ) as GraphFileAttachment[];
 }
 
 async function sendMailWithGraph(payload: PayloadType) {
